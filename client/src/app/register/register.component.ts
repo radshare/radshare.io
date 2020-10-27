@@ -16,6 +16,7 @@ export class RegisterComponent {
   constructor(private auth: AuthenticationService, private router: Router) {}
 
   register() {
+    console.log("we get here");
     this.auth.register(this.credentials).subscribe(
       () => {
         this.router.navigateByUrl("/profile");
