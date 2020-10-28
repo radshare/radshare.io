@@ -6,7 +6,7 @@ const router = express.Router();
 const jwt = require('express-jwt');
 
 const auth = jwt({
-    secret: '123sesamestreet', //don't keep!
+    secret: 'MY_SECRET', //don't keep!
     userProperty: 'payload',
 });
 

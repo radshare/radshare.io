@@ -42,6 +42,33 @@ export class AuthenticationService {
     return this.token;
   }
 
+  private request(
+    method: "post" | "get",
+    type: "login" | "register" | "profile",
+    user?: TokenPayload
+  ): Observable<any> {
+    let base$;
+
+    if (method === "post") {
+      base$ = this.http.post(`/api/${type}`, user);
+    } else {
+      base$ = this.http.get(`/api/${type}`, {
+        headers: { Authorization: `Bearer ${this.getToken()}` }
+      });
+    }
+
+    const request = base$.pipe(
+      map((data: TokenResponse) => {
+        if (data.token) {
+          this.saveToken(data.token);
+        }
+        return data;
+      })
+    );
+
+    return request;
+  }
+
   public logout(): void {
     this.token = "";
     window.localStorage.removeItem("mean-token");
@@ -67,32 +94,6 @@ export class AuthenticationService {
     } else {
       return false;
     }
-  }
-
-  private request(
-    method: "post" | "get",
-    type: "login" | "register" | "profile",
-    user?: TokenPayload
-  ): Observable<any> {
-    let base$;
-
-    if (method === "post") {
-      base$ = this.http.post(`/api/${type}`, user);
-    } else {
-      base$ = this.http.get(`/api/${type}`, {
-        headers: { Authorization: `Bearer ${this.getToken()}` }
-      });
-    }
-
-    const request = base$.pipe(
-      map((data: TokenResponse) => {
-        if (data.token) {
-          this.saveToken(data.token);
-        }
-        return data;
-      })
-    );
-    return request;
   }
 
   public register(user: TokenPayload): Observable<any> {
