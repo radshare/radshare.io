@@ -7,15 +7,26 @@
       </p>
       <form (submit)="register()">
         <div class="form-group">
-          <label for="name">Full name</label>
+          <label for="username">Username</label>
           <input
             type="text"
             class="form-control"
-            name="name"
-            placeholder="Enter your name"
-            [(ngModel)]="credentials.name"
+            name="username"
+            placeholder="Enter your username"
+            required maxlength="24" minlength="4"
+            [(ngModel)]="credentials.username" #username="ngModel"
           />
+          <div *ngIf="username.invalid && (username.dirty || username.touched)"
+               class="alert alert-danger">
+            <div *ngIf="username.errors.required">
+              Username is required.
+            </div>
+            <div *ngIf="username.errors.minlength">
+              Name must be at least 4 characters long.
+            </div>
+          </div>
         </div>
+
         <div class="form-group">
           <label for="email">Email address</label>
           <input
@@ -23,8 +34,18 @@
             class="form-control"
             name="email"
             placeholder="Enter email"
-            [(ngModel)]="credentials.email"
+            required pattern="^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
+            [(ngModel)]="credentials.email" #email="ngModel"
           />
+          <div *ngIf="email.invalid && (email.dirty || email.touched)"
+               class="alert alert-danger">
+            <div *ngIf="email.errors.required">
+              Email is required.
+            </div>
+            <div *ngIf="email.errors.pattern">
+              Must enter a valid email.
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label for="password">Password</label>
