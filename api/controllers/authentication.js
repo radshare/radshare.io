@@ -40,3 +40,11 @@ module.exports.login = (req, res) => {
         }
     })(req, res);
 };
+
+module.exports.checkEmail = (req, res, next) => {
+    User.findOne({email: req.query.email}, 'email -_id', function(err, user){
+        if (err) return next(err);
+        console.log(user);
+        res.status(200).json(user);
+    });
+};

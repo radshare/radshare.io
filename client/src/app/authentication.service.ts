@@ -1,8 +1,8 @@
-import { Injectable } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
-import { Router } from "@angular/router";
-import { Observable } from "rxjs";
-import { map } from "rxjs/operators";
+import {Injectable} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {Router} from '@angular/router';
+import {Observable} from 'rxjs';
+import {map} from 'rxjs/operators';
 
 export interface UserDetails {
   _id: string;
@@ -57,7 +57,7 @@ export class AuthenticationService {
       });
     }
 
-    const request = base$.pipe(
+    return base$.pipe(
       map((data: TokenResponse) => {
         if (data.token) {
           this.saveToken(data.token);
@@ -65,8 +65,6 @@ export class AuthenticationService {
         return data;
       })
     );
-
-    return request;
   }
 
   public logout(): void {

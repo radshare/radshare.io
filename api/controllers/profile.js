@@ -9,7 +9,7 @@ module.exports.profileRead = (req, res) => {
         });
     } else {
         // Otherwise continue
-        User.findById(req.payload._id).exec(function(err, user) {
+        User.findById(req.payload._id).exec(function (err, user) {
             res.status(200).json(user);
         });
     }

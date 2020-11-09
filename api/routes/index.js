@@ -16,5 +16,6 @@ router.get('/profile', auth, ctrlProfile.profileRead);
 // authentication
 router.post('/register', ctrlAuth.register);
 router.post('/login', ctrlAuth.login);
+router.get('/register', ctrlAuth.checkEmail);
 
 module.exports = router;

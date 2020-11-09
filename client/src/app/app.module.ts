@@ -10,6 +10,7 @@ import { LoginComponent } from './login/login.component';
 import { HomeComponent } from './home/home.component';
 import { RegisterComponent } from './register/register.component';
 import {PasswordConfirmationValidator} from './passwordconfirmationvalidator.directive';
+import { UniqueemailvalidatorDirective } from './uniqueemailvalidator.directive';
 
 @NgModule({
   declarations: [
@@ -18,7 +19,8 @@ import {PasswordConfirmationValidator} from './passwordconfirmationvalidator.dir
     LoginComponent,
     HomeComponent,
     RegisterComponent,
-    PasswordConfirmationValidator
+    PasswordConfirmationValidator,
+    UniqueemailvalidatorDirective
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule, HttpClientModule],
   providers: [],

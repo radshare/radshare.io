@@ -35,7 +35,9 @@
             name="email"
             placeholder="Enter email"
             required pattern="^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
+            UniqueEmail
             [(ngModel)]="credentials.email" #email="ngModel"
+            [ngModelOptions]="{ updateOn: 'blur' }"
           />
           <div *ngIf="email.invalid && (email.dirty || email.touched)"
                class="alert alert-danger">
@@ -44,6 +46,9 @@
             </div>
             <div *ngIf="email.errors.pattern">
               Must enter a valid email.
+            </div>
+            <div *ngIf="email.errors.takenEmail">
+              Email already exists.
             </div>
           </div>
         </div>
@@ -80,7 +85,7 @@
           <div *ngIf="(!passwordConfirm.valid) && (passwordConfirm.dirty || passwordConfirm.touched)"
                class="alert alert-danger">
             <div *ngIf="passwordConfirm.errors.required">
-              Password is required.
+              Confirmation is required.
             </div>
             <div *ngIf="passwordConfirm.errors.passwordMatchError">
               Passwords must match.
