@@ -14,6 +14,7 @@
             name="username"
             placeholder="Enter your username"
             required maxlength="24" minlength="4"
+            Whitespace
             [(ngModel)]="credentials.username" #username="ngModel"
           />
           <div *ngIf="username.invalid && (username.dirty || username.touched)"
@@ -23,6 +24,9 @@
             </div>
             <div *ngIf="username.errors.minlength">
               Username must be at least 4 characters long.
+            </div>
+            <div *ngIf="username.errors.whiteSpace">
+              Special characters are not allowed.
             </div>
           </div>
         </div>
@@ -35,7 +39,7 @@
             name="email"
             placeholder="Enter email"
             required pattern="^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"
-            UniqueEmail
+            UniqueEmail Whitespace
             [(ngModel)]="credentials.email" #email="ngModel"
             [ngModelOptions]="{ updateOn: 'blur' }"
           />
@@ -49,6 +53,9 @@
             </div>
             <div *ngIf="email.errors.takenEmail">
               Email already exists.
+            </div>
+            <div *ngIf="email.errors.whiteSpace">
+              Spaces are not allowed.
             </div>
           </div>
         </div>

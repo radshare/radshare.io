@@ -9,8 +9,10 @@ import { ProfileComponent } from './profile/profile.component';
 import { LoginComponent } from './login/login.component';
 import { HomeComponent } from './home/home.component';
 import { RegisterComponent } from './register/register.component';
-import {PasswordConfirmationValidator} from './passwordconfirmationvalidator.directive';
-import { UniqueemailvalidatorDirective } from './uniqueemailvalidator.directive';
+import {PasswordConfirmationValidator} from './validators/password-confirmation-validator.directive';
+import { UniqueEmailValidator } from './validators/unique-email-validator.directive';
+import { WhitespaceValidator } from './validators/whitespace-validator.directive';
+import { SpecialCharValidatorDirective } from './validators/special-char-validator.directive';
 
 @NgModule({
   declarations: [
@@ -20,7 +22,9 @@ import { UniqueemailvalidatorDirective } from './uniqueemailvalidator.directive'
     HomeComponent,
     RegisterComponent,
     PasswordConfirmationValidator,
-    UniqueemailvalidatorDirective
+    UniqueEmailValidator,
+    WhitespaceValidator,
+    SpecialCharValidatorDirective
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule, HttpClientModule],
   providers: [],
