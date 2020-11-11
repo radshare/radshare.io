@@ -14,7 +14,7 @@
             name="username"
             placeholder="Enter your username"
             required maxlength="24" minlength="4"
-            Whitespace
+            Whitespace pattern="[A-Za-z0-9-_]+"
             [(ngModel)]="credentials.username" #username="ngModel"
           />
           <div *ngIf="username.invalid && (username.dirty || username.touched)"
@@ -25,7 +25,7 @@
             <div *ngIf="username.errors.minlength">
               Username must be at least 4 characters long.
             </div>
-            <div *ngIf="username.errors.whiteSpace">
+            <div *ngIf="username.errors.pattern">
               Special characters are not allowed.
             </div>
           </div>

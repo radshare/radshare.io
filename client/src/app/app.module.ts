@@ -12,7 +12,6 @@ import { RegisterComponent } from './register/register.component';
 import {PasswordConfirmationValidator} from './validators/password-confirmation-validator.directive';
 import { UniqueEmailValidator } from './validators/unique-email-validator.directive';
 import { WhitespaceValidator } from './validators/whitespace-validator.directive';
-import { SpecialCharValidatorDirective } from './validators/special-char-validator.directive';
 
 @NgModule({
   declarations: [
@@ -24,7 +23,6 @@ import { SpecialCharValidatorDirective } from './validators/special-char-validat
     PasswordConfirmationValidator,
     UniqueEmailValidator,
     WhitespaceValidator,
-    SpecialCharValidatorDirective
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule, HttpClientModule],
   providers: [],
