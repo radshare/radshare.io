@@ -5,7 +5,7 @@
       <p class="lead">
         Already a member? Please <a routerLink="/login">log in</a> instead.
       </p>
-      <form (submit)="register()">
+      <form #registerForm="ngForm" (submit)="register()">
         <div class="form-group">
           <label for="username">Username</label>
           <input
@@ -14,7 +14,7 @@
             name="username"
             placeholder="Enter your username"
             required maxlength="24" minlength="4"
-            Whitespace pattern="[A-Za-z0-9-_]+"
+            pattern="[A-Za-z0-9-_]+"
             [(ngModel)]="credentials.username" #username="ngModel"
           />
           <div *ngIf="username.invalid && (username.dirty || username.touched)"
@@ -99,7 +99,7 @@
             </div>
           </div>
         </div>
-        <button type="submit" class="btn btn-default">Register!</button>
+        <button type="submit" class="btn btn-default" [disabled]="!registerForm.valid">Register!</button>
       </form>
     </div>
   </div>
