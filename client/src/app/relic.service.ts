@@ -10,6 +10,5 @@ export class RelicService {
 
   getRadshares(): Observable<any> {
     return of(null);
-
   }
 }

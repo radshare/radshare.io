@@ -12,6 +12,7 @@ import { RegisterComponent } from './register/register.component';
 import {PasswordConfirmationValidator} from './validators/password-confirmation-validator.directive';
 import { UniqueEmailValidator } from './validators/unique-email-validator.directive';
 import { WhitespaceValidator } from './validators/whitespace-validator.directive';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 @NgModule({
   declarations: [
@@ -24,7 +25,7 @@ import { WhitespaceValidator } from './validators/whitespace-validator.directive
     UniqueEmailValidator,
     WhitespaceValidator,
   ],
-  imports: [BrowserModule, AppRoutingModule, FormsModule, HttpClientModule],
+  imports: [BrowserModule, AppRoutingModule, FormsModule, HttpClientModule, BrowserAnimationsModule],
   providers: [],
   bootstrap: [AppComponent]
 })
