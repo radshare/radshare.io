@@ -1,3 +1,2 @@
-# MEAN-stack
-Boilerplate MEAN app that can be reconfigured for different uses
-Features working user registration and user sessions, all built on the MEAN stack.
+# Radshare.io
+A site designed to help people radshare, a feature of the game Warframe
