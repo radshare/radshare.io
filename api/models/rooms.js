@@ -3,13 +3,25 @@ const mongoose = require('mongoose');
 const roomSchema = new mongoose.Schema({
     relic: {
         type: String,
-        unique: true,
         required: true
     },
-    name: {
+    quality: {
         type: String,
         required: true
     },
-    hash: String,
-    salt: String
+    platform: {
+        type: String,
+        required: true
+    },
+    tenno: String,
+    deadline: {
+        type: Date,
+        required: true
+    },
+    roomCode: {
+        type: String,
+        required: true
+    }
 });
+
+mongoose.model('Room', roomSchema);
