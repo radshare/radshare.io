@@ -16,6 +16,8 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatTableModule } from '@angular/material/table';
 import { MatDialogModule } from '@angular/material/dialog';
+import { RadDialogComponent } from './home/raddialog/rad-dialog.component';
+import { MatSortModule } from '@angular/material/sort';
 
 @NgModule({
   declarations: [
@@ -27,10 +29,11 @@ import { MatDialogModule } from '@angular/material/dialog';
     PasswordConfirmationValidator,
     UniqueEmailValidator,
     WhitespaceValidator,
+    RadDialogComponent,
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule,
     HttpClientModule, BrowserAnimationsModule, MatPaginatorModule,
-    MatTableModule, MatDialogModule],
+    MatTableModule, MatDialogModule, MatSortModule],
   providers: [],
   bootstrap: [AppComponent],
   entryComponents:[]
