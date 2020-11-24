@@ -18,6 +18,10 @@ import { MatTableModule } from '@angular/material/table';
 import { MatDialogModule } from '@angular/material/dialog';
 import { RadDialogComponent } from './home/raddialog/rad-dialog.component';
 import { MatSortModule } from '@angular/material/sort';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { ReactiveFormsModule } from '@angular/forms';
+import { NgxMatSelectSearchModule } from 'ngx-mat-select-search';
 
 @NgModule({
   declarations: [
@@ -32,8 +36,9 @@ import { MatSortModule } from '@angular/material/sort';
     RadDialogComponent,
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule,
-    HttpClientModule, BrowserAnimationsModule, MatPaginatorModule,
-    MatTableModule, MatDialogModule, MatSortModule],
+    HttpClientModule, BrowserAnimationsModule, ReactiveFormsModule, MatPaginatorModule,
+    MatTableModule, MatDialogModule, MatSortModule, MatFormFieldModule, MatSelectModule,
+    NgxMatSelectSearchModule],
   providers: [],
   bootstrap: [AppComponent],
   entryComponents:[]

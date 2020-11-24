@@ -1,0 +1,19 @@
+<h3 mat-dialog-title>Create New Radshare</h3>
+
+<p>
+  <mat-form-field>
+    <mat-select [formControl]="relicCtrl" placeholder="Relic" #singleSelect>
+      <mat-option>
+        <ngx-mat-select-search [formControl]="relicFilterCtrl"
+        placeholderLabel="Find Relic..." noEntriesFoundLabel="No relics found">
+        </ngx-mat-select-search>
+      </mat-option>
+
+      <mat-option *ngFor="let relic of filteredRelics | async" [value]="relic">
+        {{relic.name}}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+</p>
+
+<button class="mat-raised-button mat-primary">Create Radshare</button>
