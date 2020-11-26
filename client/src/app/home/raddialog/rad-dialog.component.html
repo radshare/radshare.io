@@ -1,19 +1,47 @@
 <h3 mat-dialog-title>Create New Radshare</h3>
+<form (submit)="newRadRoom()">
+  <p>
+    <mat-form-field>
+      <mat-select [formControl]="relicCtrl" placeholder="Relic" #singleSelect>
+        <mat-option>
+          <ngx-mat-select-search [formControl]="relicFilterCtrl"
+          placeholderLabel="Find Relic..." noEntriesFoundLabel="No relics found">
+          </ngx-mat-select-search>
+        </mat-option>
 
-<p>
-  <mat-form-field>
-    <mat-select [formControl]="relicCtrl" placeholder="Relic" #singleSelect>
-      <mat-option>
-        <ngx-mat-select-search [formControl]="relicFilterCtrl"
-        placeholderLabel="Find Relic..." noEntriesFoundLabel="No relics found">
-        </ngx-mat-select-search>
-      </mat-option>
+        <mat-option *ngFor="let relic of filteredRelics | async" [value]="relic">
+          {{relic.name}}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  </p>
 
-      <mat-option *ngFor="let relic of filteredRelics | async" [value]="relic">
-        {{relic.name}}
-      </mat-option>
-    </mat-select>
-  </mat-form-field>
-</p>
+  <p>
+    <mat-form-field>
+      <mat-label>Quality</mat-label>
+      <mat-select [(value)]="newRoom.quality">
+        <mat-option value="intact">Intact</mat-option>
+        <mat-option value="exceptional">Exceptional</mat-option>
+        <mat-option value="flawless">Flawless</mat-option>
+        <mat-option value="radiant">Radiant</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </p>
 
-<button class="mat-raised-button mat-primary">Create Radshare</button>
+  <p>
+    <mat-form-field>
+      <mat-label>Platform</mat-label>
+      <mat-select [(value)]="newRoom.platform">
+        <mat-option value="pc">PC</mat-option>
+        <mat-option value="playstation">Playstation</mat-option>
+        <mat-option value="xbox">Xbox</mat-option>
+        <mat-option value="switch">Switch</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </p>
+
+  <button type="submit" class="btn btn-default"
+    [disabled]="!relicCtrl.value || newRoom.quality == '' || newRoom.platform == ''">
+    Create Radshare
+  </button>
+</form>

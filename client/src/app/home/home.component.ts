@@ -1,4 +1,4 @@
-import {AfterViewInit, Component, OnInit, ViewChild} from '@angular/core';
+import {AfterViewInit, Component, ViewChild} from '@angular/core';
 import {RelicService} from '../relic.service';
 import {MatPaginator} from '@angular/material/paginator';
 import {MatSort} from '@angular/material/sort';
@@ -11,7 +11,7 @@ export interface RadRoom {
   quality: string;
   platform: string;
   tenno: string;
-  deadline: string;
+  code?: string;
 }
 
 @Component({

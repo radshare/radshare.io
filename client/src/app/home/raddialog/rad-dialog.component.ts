@@ -1,10 +1,11 @@
-import {AfterViewInit, Component, OnDestroy, OnInit, ViewChild} from '@angular/core';
+import {Component, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {FormControl} from '@angular/forms';
 import Items from 'warframe-items';
 import {ReplaySubject, Subject} from 'rxjs';
 import {MatSelect} from '@angular/material/select';
-import {take, takeUntil} from 'rxjs/operators';
-
+import {takeUntil} from 'rxjs/operators';
+import {RadRoom} from '../home.component';
+import {RelicService} from '../../relic.service';
 const wfItems = require('warframe-items');
 
 export interface RelicName {
@@ -17,31 +18,34 @@ export interface RelicName {
   styleUrls: ['./rad-dialog.component.css']
 })
 
-export class RadDialogComponent implements OnInit, AfterViewInit, OnDestroy {
+export class RadDialogComponent implements OnInit, OnDestroy {
   relicsList: Items = new wfItems({category : ['Relics']});
-
   relicsNames: RelicName[];
   relicCtrl: FormControl = new FormControl();
   relicFilterCtrl: FormControl = new FormControl();
   filteredRelics: ReplaySubject<RelicName[]> = new ReplaySubject<RelicName[]>(1);
   _onDestroy = new Subject<void>();
 
+  newRoom: RadRoom = {
+    code: '',
+    platform: '',
+    quality: '',
+    relic: '',
+    tenno: '1/4'
+  };
+
   @ViewChild('singleSelect', {static: true}) singleSelect: MatSelect;
 
-  constructor() {
+  constructor(private relicService: RelicService) {
     this.relicsNames = this.toRelicName(this.relicsList);
   }
 
   ngOnInit(): void {
-    console.log(this.relicsNames);
     this.filteredRelics.next(this.relicsNames.slice());
     this.relicFilterCtrl.valueChanges.pipe(takeUntil(this._onDestroy))
       .subscribe(() => {
         this.filterRelics();
       });
-  }
-
-  ngAfterViewInit(): void {
   }
 
   ngOnDestroy(): void {
@@ -56,7 +60,7 @@ export class RadDialogComponent implements OnInit, AfterViewInit, OnDestroy {
     relicsArray.forEach(relic => {
       nameArray.push(relic.name.replace(regexp, ''));
     });
-
+    // Now we remove the duplicates
     const uniqueSet = new Set(nameArray);
     [...uniqueSet].forEach(relicName => {
       returnArray.push({name : relicName});
@@ -64,11 +68,7 @@ export class RadDialogComponent implements OnInit, AfterViewInit, OnDestroy {
     return returnArray;
   }
 
-  newRadRoom() {
-
-  }
-
-  private filterRelics() {
+  protected filterRelics() {
     if (!this.relicsNames) {
       return;
     }
@@ -85,4 +85,28 @@ export class RadDialogComponent implements OnInit, AfterViewInit, OnDestroy {
         .filter(relic => relic.name.toLowerCase().indexOf(search) > -1)
     );
   }
+
+  newRadRoom(){
+    this.newRoom.code = this.generateFourLetterRandomCode();
+    this.relicService.newRoom(this.newRoom).subscribe(
+
+    );
+  }
+
+  generateFourLetterRandomCode() : string{
+    let forbiddenWords : RegExp
+      = new RegExp('(ASS.|.ASS|.CUM|CUM.|.JEW|JEW.' +
+      '|.TIT|TIT.|.WOP|WOP.|.FAG|FAG.|.GAY|GAY.|SHIT|FUCK|CUNT|ANUS' +
+      '|ANAL|ARSE|CLIT|COCK|CRAP|DICK|D1CK|DYKE|GOOK|HOMO' +
+      '|KIKE|PAKI|PISS|SLUT|SPIC|TWAT|WANK|PRICK|JIZZ|COON)');
+
+    let result = Math.random().toString(36).substr(2,4).toUpperCase();
+    if (result.match(forbiddenWords)){
+      return this.generateFourLetterRandomCode();
+    }
+    else{
+      return result;
+    }
+  }
+
 }
