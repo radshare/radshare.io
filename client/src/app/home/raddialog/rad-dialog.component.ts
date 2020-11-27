@@ -87,26 +87,10 @@ export class RadDialogComponent implements OnInit, OnDestroy {
   }
 
   newRadRoom(){
-    this.newRoom.code = this.generateFourLetterRandomCode();
+    this.newRoom.relic = this.relicCtrl.value.name;
     this.relicService.newRoom(this.newRoom).subscribe(
 
     );
-  }
-
-  generateFourLetterRandomCode() : string{
-    let forbiddenWords : RegExp
-      = new RegExp('(ASS.|.ASS|.CUM|CUM.|.JEW|JEW.' +
-      '|.TIT|TIT.|.WOP|WOP.|.FAG|FAG.|.GAY|GAY.|SHIT|FUCK|CUNT|ANUS' +
-      '|ANAL|ARSE|CLIT|COCK|CRAP|DICK|D1CK|DYKE|GOOK|HOMO' +
-      '|KIKE|PAKI|PISS|SLUT|SPIC|TWAT|WANK|PRICK|JIZZ|COON)');
-
-    let result = Math.random().toString(36).substr(2,4).toUpperCase();
-    if (result.match(forbiddenWords)){
-      return this.generateFourLetterRandomCode();
-    }
-    else{
-      return result;
-    }
   }
 
 }
