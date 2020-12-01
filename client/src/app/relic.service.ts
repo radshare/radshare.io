@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
-import {Observable, of} from 'rxjs';
+import {Observable} from 'rxjs';
 import {RadRoom} from './home/home.component';
 import {HttpClient} from '@angular/common/http';
-import {map} from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
@@ -12,16 +11,10 @@ export class RelicService {
   constructor(private http: HttpClient) { }
 
   getRadshares(): Observable<any> {
-    return of(null);
+    return this.http.get(`/api/home`);
   }
 
   newRoom(newRoom: RadRoom): Observable<any> {
-    console.log(newRoom);
-    return this.http.post(`/api/home`, newRoom).pipe(
-      map((room : RadRoom) => {
-        console.log(room);
-        return room;
-      })
-    );
+    return this.http.post(`/api/home`, newRoom);
   }
 }

@@ -6,6 +6,7 @@ module.exports.newRoom = (req, res) => {
     room.relic = req.body.relic;
     room.quality = req.body.quality;
     room.platform = req.body.platform;
+    room.expirationDate = Date.now() + 7200000;
     room.tenno = req.body.tenno;
     room.genRoomCode();
 
@@ -25,18 +26,17 @@ module.exports.newRoom = (req, res) => {
 };
 
 module.exports.getRooms = (req, res) => {
-    const user = new User();
-
-    user.username = req.body.name;
-    user.email = req.body.email;
-
-    user.setPassword(req.body.password);
-
-    user.save(() => {
-        const token = user.generateJwt();
-        res.status(200);
-        res.json({
-            token: token
-        });
+    Room.find((err, data) => {
+        if (err){
+            console.error(err);
+            res.status(500);
+            res.json(err);
+        }
+        else{
+            res.status(200);
+            res.json({
+                data : data
+            });
+        }
     });
 };

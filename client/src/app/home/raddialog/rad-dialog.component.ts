@@ -31,7 +31,7 @@ export class RadDialogComponent implements OnInit, OnDestroy {
     platform: '',
     quality: '',
     relic: '',
-    tenno: '1/4'
+    tenno: '1'
   };
 
   @ViewChild('singleSelect', {static: true}) singleSelect: MatSelect;
