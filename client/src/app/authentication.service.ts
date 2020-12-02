@@ -44,7 +44,7 @@ export class AuthenticationService {
 
   private request(
     method: "post" | "get",
-    type: "login" | "register" | "profile",
+    type: "login" | "register" | "settings",
     user?: TokenPayload
   ): Observable<any> {
     let base$;
@@ -102,7 +102,7 @@ export class AuthenticationService {
     return this.request("post", "login", user);
   }
 
-  public profile(): Observable<any> {
-    return this.request("get", "profile");
+  public settings(): Observable<any> {
+    return this.request("get", "settings");
   }
 }

@@ -2,16 +2,16 @@ import { Component, OnInit } from "@angular/core";
 import { AuthenticationService, UserDetails } from "../authentication.service";
 
 @Component({
-  templateUrl: "./profile.component.html",
-  styleUrls: ["./profile.component.css"]
+  templateUrl: "./settings.component.html",
+  styleUrls: ["./settings.component.css"]
 })
-export class ProfileComponent implements OnInit {
+export class SettingsComponent implements OnInit {
   details: UserDetails;
 
   constructor(private auth: AuthenticationService) {}
 
   ngOnInit() {
-    this.auth.profile().subscribe(
+    this.auth.settings().subscribe(
       user => {
         this.details = user;
       },

@@ -9,7 +9,7 @@
         <li *ngIf="!auth.isLoggedIn()"><a routerLink="/login">Sign in</a></li>
         <li *ngIf="!auth.isLoggedIn()"><a routerLink="/register">Register</a></li>
         <li *ngIf="auth.isLoggedIn()">
-          <a routerLink="/profile">{{ auth.getUserDetails()?.name }}</a>
+          <a routerLink="/settings">Settings</a>
         </li>
         <li *ngIf="auth.isLoggedIn()"><a (click)="auth.logout()">Logout</a></li>
       </ul>

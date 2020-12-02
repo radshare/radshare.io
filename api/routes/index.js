@@ -1,5 +1,5 @@
 const ctrlAuth = require('../controllers/authentication');
-const ctrlProfile = require('../controllers/profile');
+const ctrlSettings = require('../controllers/settings');
 const ctrlHomeTable = require('../controllers/homeTable');
 
 const express = require('express');
@@ -11,8 +11,8 @@ const auth = jwt({
     userProperty: 'payload',
 });
 
-// profile
-router.get('/profile', auth, ctrlProfile.profileRead);
+// settings
+router.get('/settings', auth, ctrlSettings.settingsRead);
 
 // authentication
 router.post('/register', ctrlAuth.register);
