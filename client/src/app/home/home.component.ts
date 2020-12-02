@@ -7,6 +7,8 @@ import {RadDialogComponent} from './raddialog/rad-dialog.component';
 import {catchError, map, startWith, switchMap} from 'rxjs/operators';
 import {merge, Observable, of} from 'rxjs';
 import {MatTableDataSource} from '@angular/material/table';
+import {AuthenticationService} from '../authentication.service';
+import {Router} from '@angular/router';
 
 export interface RadRoom {
   expirationDate?: number;
@@ -31,7 +33,8 @@ export class HomeComponent implements AfterViewInit{
   @ViewChild(MatPaginator) paginator: MatPaginator;
   @ViewChild(MatSort) sort: MatSort;
 
-  constructor(private relics: RelicService, private newRadDiaglog: MatDialog) {}
+  constructor(private relics: RelicService, private auth: AuthenticationService,
+              private newRadDiaglog: MatDialog, private router: Router) {}
 
   ngAfterViewInit(){
     this.sort.sortChange.subscribe(() => this.paginator.pageIndex = 0);
@@ -68,10 +71,15 @@ export class HomeComponent implements AfterViewInit{
   }
 
   openNewRadDialog() {
-    const dialogConfig = new MatDialogConfig();
+    if (!this.auth.isLoggedIn()){
+      this.router.navigateByUrl("/login")
+    }
+    else{
+      const dialogConfig = new MatDialogConfig();
 
-    dialogConfig.autoFocus = true;
-    this.newRadDiaglog.open(RadDialogComponent, dialogConfig);
+      dialogConfig.autoFocus = true;
+      this.newRadDiaglog.open(RadDialogComponent, dialogConfig);
+    }
   }
 
   loadRadshares(): Observable<any> {
