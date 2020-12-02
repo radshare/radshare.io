@@ -1,4 +1,4 @@
-import {AfterViewInit, Component, OnInit, ViewChild} from '@angular/core';
+import {AfterViewInit, Component, ViewChild} from '@angular/core';
 import {RelicService} from '../relic.service';
 import {MatPaginator} from '@angular/material/paginator';
 import {MatSort} from '@angular/material/sort';
@@ -6,6 +6,7 @@ import {MatDialog, MatDialogConfig} from '@angular/material/dialog';
 import {RadDialogComponent} from './raddialog/rad-dialog.component';
 import {catchError, map, startWith, switchMap} from 'rxjs/operators';
 import {merge, Observable, of} from 'rxjs';
+import {MatTableDataSource} from '@angular/material/table';
 
 export interface RadRoom {
   expirationDate?: number;
@@ -21,31 +22,20 @@ export interface RadRoom {
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css']
 })
-export class HomeComponent implements AfterViewInit, OnInit{
-  displayedColumns: string[] = ['relic', 'quality', 'platform', 'tenno', 'deadline'];
+export class HomeComponent implements AfterViewInit{
+  displayedColumns: string[] = ['relic', 'quality', 'platform', 'tenno', 'expirationDate'];
   private isLoadingResults: boolean;
+  private resultsLength = 0;
+  dataSource: MatTableDataSource<RadRoom[]>;
 
   @ViewChild(MatPaginator) paginator: MatPaginator;
   @ViewChild(MatSort) sort: MatSort;
-  private resultsLength = 0;
-  data: RadRoom[] | RadRoom;
 
-  constructor(private relics: RelicService, private newRadDiaglog: MatDialog) {
-  }
-
-  ngOnInit(): void {
-    /**
-    this.dataSource = new MatTableDataSource([
-      {relic: 'MESO G1', quality: 'Radiant', platform: 'PC', tenno: '1', deadline: '???'},
-      {relic: 'NEO N1', quality: 'Radiant', platform: 'PC', tenno: '3', deadline: '???'},
-      {relic: 'NEO N2', quality: 'Intact', platform: 'Switch', tenno: '4', deadline: '???'}
-    ]);
-     **/
-  }
+  constructor(private relics: RelicService, private newRadDiaglog: MatDialog) {}
 
   ngAfterViewInit(){
     this.sort.sortChange.subscribe(() => this.paginator.pageIndex = 0);
-    merge(this.sort.sortChange, this.paginator.page)
+    merge()
       .pipe(
         startWith({}),
         switchMap(() => {
@@ -65,16 +55,18 @@ export class HomeComponent implements AfterViewInit, OnInit{
           });
           return data.data;
         }),
-        catchError(() => {
+        catchError((err) => {
+          console.error(err);
           this.isLoadingResults = false;
           return of([]);
         })
-      ).subscribe(data => this.data = data);
-
-    /**
-    this.data.paginator = this.paginator;
-    this.data.sort = this.sort;
-     **/
+      ).subscribe(data => {
+        this.dataSource = new MatTableDataSource(data);
+        this.dataSource.paginator = this.paginator;
+        this.dataSource.sort = this.sort;
+        console.log(this.dataSource.paginator);
+        console.log(this.dataSource.sort);
+    });
   }
 
   openNewRadDialog() {

@@ -8,7 +8,7 @@
 
 
 <div class="basic-container mat-elevation-z8">
-    <table mat-table [dataSource]="data" matSort>
+    <table mat-table [dataSource]="dataSource" matSort>
 
       <!-- Tenno Column -->
       <ng-container matColumnDef="tenno">
@@ -35,7 +35,7 @@
       </ng-container>
 
       <!-- Deadline Column -->
-      <ng-container matColumnDef="deadline">
+      <ng-container matColumnDef="expirationDate">
         <th mat-header-cell *matHeaderCellDef mat-sort-header> Deadline </th>
         <td mat-cell *matCellDef="let row">{{(row.expirationDate)}}</td>
       </ng-container>
