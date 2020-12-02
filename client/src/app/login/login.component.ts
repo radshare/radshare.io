@@ -11,16 +11,18 @@ export class LoginComponent {
     email: "",
     password: ""
   };
+  errMessage: string;
 
   constructor(private auth: AuthenticationService, private router: Router) {}
 
   login() {
+    this.errMessage = null;
     this.auth.login(this.credentials).subscribe(
       () => {
         this.router.navigateByUrl("/");
       },
-      err => {
-        console.error(err);
+      (err) => {
+        this.errMessage = err.error.message;
       }
     );
   }
