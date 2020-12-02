@@ -5,17 +5,24 @@ const User = mongoose.model('User');
 module.exports.register = (req, res) => {
     const user = new User();
 
-    user.username = req.body.name;
+    user.username = req.body.username;
     user.email = req.body.email;
 
     user.setPassword(req.body.password);
 
-    user.save(() => {
-        const token = user.generateJwt();
-        res.status(200);
-        res.json({
-            token: token
-        });
+    user.save((err) => {
+        if (err){
+            console.error(err);
+            res.status(500);
+            res.json(err);
+        }
+        else{
+            const token = user.generateJwt();
+            res.status(200);
+            res.json({
+                token: token
+            });
+        }
     });
 };
 

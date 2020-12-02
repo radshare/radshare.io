@@ -9,7 +9,9 @@ module.exports.settingsRead = (req, res) => {
         });
     } else {
         // Otherwise continue
+        console.log(req);
         User.findById(req.payload._id).exec(function (err, user) {
+            console.log(user);
             res.status(200).json(user);
         });
     }
