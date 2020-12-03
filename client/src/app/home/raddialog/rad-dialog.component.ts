@@ -6,6 +6,7 @@ import {MatSelect} from '@angular/material/select';
 import {takeUntil} from 'rxjs/operators';
 import {RadRoom} from '../home.component';
 import {RelicService} from '../../relic.service';
+import {MatDialogRef} from '@angular/material/dialog';
 const wfItems = require('warframe-items');
 
 export interface RelicName {
@@ -36,7 +37,7 @@ export class RadDialogComponent implements OnInit, OnDestroy {
 
   @ViewChild('singleSelect', {static: true}) singleSelect: MatSelect;
 
-  constructor(private relicService: RelicService) {
+  constructor(private relicService: RelicService, private dialogRef: MatDialogRef<RadDialogComponent>) {
     this.relicsNames = this.toRelicName(this.relicsList);
   }
 
@@ -88,9 +89,9 @@ export class RadDialogComponent implements OnInit, OnDestroy {
 
   newRadRoom(){
     this.newRoom.relic = this.relicCtrl.value.name;
-    this.relicService.newRoom(this.newRoom).subscribe(
-
-    );
+    this.relicService.newRoom(this.newRoom).subscribe(returnedRoom => {
+      this.dialogRef.close(true);
+    });
   }
 
 }

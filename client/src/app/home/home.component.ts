@@ -5,7 +5,7 @@ import {MatSort} from '@angular/material/sort';
 import {MatDialog, MatDialogConfig} from '@angular/material/dialog';
 import {RadDialogComponent} from './raddialog/rad-dialog.component';
 import {catchError, map, startWith, switchMap} from 'rxjs/operators';
-import {merge, Observable, of} from 'rxjs';
+import {merge, of} from 'rxjs';
 import {MatTableDataSource} from '@angular/material/table';
 import {AuthenticationService} from '../authentication.service';
 import {Router} from '@angular/router';
@@ -34,16 +34,38 @@ export class HomeComponent implements AfterViewInit{
   @ViewChild(MatSort) sort: MatSort;
 
   constructor(private relics: RelicService, private auth: AuthenticationService,
-              private newRadDiaglog: MatDialog, private router: Router) {}
+              private radDiaglog: MatDialog, private router: Router) {}
 
   ngAfterViewInit(){
     this.sort.sortChange.subscribe(() => this.paginator.pageIndex = 0);
+    this.loadRadshares();
+  }
+
+  openNewRadDialog() {
+    if (!this.auth.isLoggedIn()){
+      this.router.navigateByUrl("/login")
+    }
+    else{
+      const dialogConfig = new MatDialogConfig();
+
+      dialogConfig.autoFocus = true;
+      this.radDiaglog.open(RadDialogComponent, dialogConfig)
+        .afterClosed().subscribe( (roomCreated) => {
+          if (roomCreated){
+            this.loadRadshares();
+          }
+        }
+      );
+    }
+  }
+
+  loadRadshares():void {
     merge()
       .pipe(
         startWith({}),
         switchMap(() => {
           this.isLoadingResults = true;
-          return this.loadRadshares();
+          return this.relics.getRadshares();
         }),
         map(data => {
           // Flip flag to show that loading has finished.
@@ -64,26 +86,13 @@ export class HomeComponent implements AfterViewInit{
           return of([]);
         })
       ).subscribe(data => {
-        this.dataSource = new MatTableDataSource(data);
-        this.dataSource.paginator = this.paginator;
-        this.dataSource.sort = this.sort;
+      this.dataSource = new MatTableDataSource(data);
+      this.dataSource.paginator = this.paginator;
+      this.dataSource.sort = this.sort;
     });
   }
 
-  openNewRadDialog() {
-    if (!this.auth.isLoggedIn()){
-      this.router.navigateByUrl("/login")
-    }
-    else{
-      const dialogConfig = new MatDialogConfig();
-
-      dialogConfig.autoFocus = true;
-      this.newRadDiaglog.open(RadDialogComponent, dialogConfig);
-    }
+  joinRoomPrompt(row: any) {
+    console.log(row);
   }
-
-  loadRadshares(): Observable<any> {
-    return this.relics.getRadshares();
-  }
-
 }
