@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
+    "rebuild": "rm build && npm run build",
+    "build": "tsc",
     "postinstall": "cd client && npm install"
   },
   "dependencies": {

@@ -9,7 +9,7 @@
     "noUnusedParameters": true,
     "moduleResolution": "Node",
     "strict": true,
-    "sourceMap": true
+    "sourceMap": false
   },
   "include": [
     "src/**/*.ts",

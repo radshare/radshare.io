@@ -1,14 +1,13 @@
 export interface ExpressConfiguration {
-	host: string,
 	port: number
 }
 
 export class Configuration {
 
 	public static get express(): ExpressConfiguration {
+		let port: number = Number(process.env.PORT);
 		return {
-			host: String(process.env.HOST),
-			port: Number(process.env.PORT)
+			port: isNaN(port) ? port : 3000
 		}
 	}
 }
