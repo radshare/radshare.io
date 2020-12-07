@@ -3,10 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www",
+    "start": "node -r ts-node/register ./src/main.ts",
     "rebuild": "rm build && npm run build",
-    "build": "tsc",
-    "postinstall": "cd client && npm install"
+    "build": "tsc"
   },
   "dependencies": {
     "cookie-parser": "~1.4.3",
@@ -19,6 +18,7 @@
     "morgan": "~1.9.0",
     "passport": "^0.4.1",
     "passport-local": "^1.0.0",
+    "typescript-logging": "^1.0.0",
     "warframe-items": "^1.1243.0"
   },
   "devDependencies": {

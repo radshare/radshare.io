@@ -6,18 +6,21 @@ export class SettingsController {
 	constructor() {
 	}
 
-	public get(req: any, res: any) {
-		mongoose.model<IUser>('User').findById()
+	public async get(req: any, res: any): Promise<void> {
+		let User = mongoose.model<IUser>('User');
 		// If no user ID exists in the JWT return a 401
+		req.headers.authorization
 		if (!req.payload._id) {
 			res.status(401).json({
 				message: 'UnauthorizedError: private settings'
 			});
 		} else {
 			// Otherwise continue
-			User.findById(req.payload._id).exec((err, user) => {
-				res.status(200).json(user);
-			});
+			try {
+				let user = await User.findById(req.payload._id).exec();
+				res.status(200).json(user)
+			} catch (e) {
+			}
 		}
 	}
 }
