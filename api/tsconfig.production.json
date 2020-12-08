@@ -16,7 +16,6 @@
     // "outFile": "./",                       /* Concatenate and emit output to single file. */
     "outDir": "dist",                        /* Redirect output structure to the directory. */
     // "rootDir": "./",                       /* Specify the root directory of input files. Use to control the output directory structure with --outDir. */
-    "pretty": true,
     // "composite": true,                     /* Enable project compilation */
     // "tsBuildInfoFile": "./",               /* Specify file to store incremental compilation information */
     "removeComments": true,                /* Do not emit comments to output. */
@@ -70,7 +69,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules"
