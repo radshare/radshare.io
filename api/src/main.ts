@@ -1,14 +1,20 @@
-import express, {ErrorRequestHandler, Express} from 'express';
-import {Configuration} from "./config";
+import express, {Express, Router} from 'express';
 import cookieParser from "cookie-parser";
 import passport from "passport";
 import http, {Server} from 'http';
 import jwt from "express-jwt";
-import * as mongoose from "mongoose";
-import {SettingsController} from "./controllers";
 
-class App {
+import {Configuration} from "./config";
+import {AuthenticationController, HomeTableController, SettingsController} from "./controllers";
+import {MongoService} from "./services";
+import {initialize} from "./config/passport";
 
+class Api {
+
+	private readonly mongoService: MongoService;
+
+	private readonly authController: AuthenticationController;
+	private readonly homeController: HomeTableController;
 	private readonly app: Express;
 
 	private auth = jwt({
@@ -16,35 +22,62 @@ class App {
 		userProperty: 'payload',
 	});
 
+
 	constructor() {
+		try {
+			this.mongoService = new MongoService();
+			this.mongoService.DefineModels();
+		} catch (e) {
+			console.error(e)
+			process.exit(1);
+		}
+
 		this.app = express();
+		this.authController = new AuthenticationController(this.mongoService.connection);
+		this.homeController = new HomeTableController(this.mongoService.connection);
 
 		// Use Setup
 		this.app.use(express.json());
 		this.app.use(express.urlencoded({ extended: false }));
 		this.app.use(cookieParser());
+		this.app.use("/api", this.Routes());
+
+		//	auth
+		initialize(this.mongoService.connection)
 		this.app.use(passport.initialize());
+
 	}
 
-	public Routes(): Express {
-		this.app.get('/settings',
+	public Routes(): Router {
+		let router: Router = express.Router();
+		router.get('/settings',
 			jwt({
 				secret: 'MY_SECRET', //don't keep!
 				userProperty: 'payload',
 			}),
 			new SettingsController().get);
 
+		router.post('/register', this.authController.register);
+		router.post('/login', this.authController.login);
+		router.get('/register', this.authController.checkEmail);
 
-		return this.app;
+		router.post('/home', this.homeController.post);
+		router.get('/home', this.homeController.get);
+
+		return router;
 	}
 
-	public Setup(): Server {
+	public async Start(): Promise<Server> {
+		await this.mongoService.connect();
+
 		let server = http.createServer(this.app);
 
 		server.on("listening", () => {
 			console.log('Listening on port: ' + Configuration.express.port)
 		});
 
-		return http.createServer(this.app);
+		return server.listen(Configuration.express.port);
 	}
 }
+
+new Api().Start()
