@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import {IUser} from "../models/mongoose";
+import {IUser} from "../schema/user";
 
 export class SettingsController {
 
