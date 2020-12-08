@@ -1,7 +1,7 @@
 require('./users');
 require('./rooms');
 const mongoose = require('mongoose');
-const dbURI = 'mongodb+srv://radsharebot:jk8jLw62ktjnmWjt@rad01.vh9n4.mongodb.net/radshare?retryWrites=true&w=majority';
+const dbURI = 'duh';
 
 mongoose.set('useCreateIndex', true);
 mongoose.connect(dbURI, {
