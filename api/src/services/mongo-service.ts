@@ -17,16 +17,13 @@ export class MongoService {
 			useUnifiedTopology: true,
 			useCreateIndex: true
 		});
+
+		this._connection.model<IUser>(Models.USER, new UserSchema());
+		this._connection.model<IRoom>(Models.ROOM, new RoomSchema());
 	}
 
 	public get connection(): Connection {
 		return this._connection;
-	}
-
-	public DefineModels(): MongoService {
-		this._connection.model<IUser>(Models.USER, new UserSchema());
-		this._connection.model<IRoom>(Models.ROOM, new RoomSchema());
-		return this;
 	}
 
 	public async connect(): Promise<ClientSession> {

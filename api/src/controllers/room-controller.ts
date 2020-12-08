@@ -36,6 +36,13 @@ export class RoomController {
 	public async get(req: Request, res: Response): Promise<void> {
 		try {
 			let result: IRoom[] = await this.room.find().exec();
+
+			if(!result) {
+				console.warn('Room not found for request', req);
+				res.status(404);
+				return;
+			}
+
 			res.status(200);
 			res.json({
 				data : result

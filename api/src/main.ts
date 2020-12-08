@@ -15,12 +15,12 @@ class Api {
 
 	private readonly authController: AuthenticationController;
 	private readonly roomController: RoomController;
+	private readonly settingsController: SettingsController;
 	private readonly app: Express;
 
 	constructor() {
 		try {
 			this.mongoService = new MongoService();
-			this.mongoService.DefineModels();
 		} catch (e) {
 			console.error(e)
 			process.exit(1);
@@ -29,6 +29,7 @@ class Api {
 		this.app = express();
 		this.authController = new AuthenticationController(this.mongoService.connection);
 		this.roomController = new RoomController(this.mongoService.connection);
+		this.settingsController = new SettingsController(this.mongoService.connection);
 
 		// Use Setup
 		this.app.use(express.json());
@@ -42,21 +43,26 @@ class Api {
 
 	}
 
-	public Routes(): Router {
+	private Routes(): Router {
 		let router: Router = express.Router();
 		router.get('/settings',
 			jwt({
 				secret: 'MY_SECRET', //don't keep!
 				userProperty: 'payload',
 			}),
-			new SettingsController().get);
+			(req, res) => this.settingsController.get(req, res));
 
-		router.post('/register', this.authController.register);
-		router.post('/login', this.authController.login);
-		router.get('/register', this.authController.checkEmail);
+		router.post('/register',
+			(req, res) => this.authController.register(req, res));
+		router.post('/login',
+			(req, res) => this.authController.login(req, res));
+		router.get('/register',
+			(req, res, next) => this.authController.checkEmail(req, res, next));
 
-		router.post('/home', this.roomController.post);
-		router.get('/home', this.roomController.get);
+		router.post('/home',
+			(req, res) => this.roomController.post(req, res));
+		router.get('/home',
+			((req, res) => this.roomController.get(req, res)));
 
 		return router;
 	}
@@ -74,4 +80,5 @@ class Api {
 	}
 }
 
-new Api().Start()
+let api = new Api();
+api.Start()
