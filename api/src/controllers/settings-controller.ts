@@ -8,7 +8,7 @@ export class SettingsController {
 	constructor() {
 	}
 
-	public async get(req: Request, res: Response): Promise<void> {
+	public async get(req: any, res: Response): Promise<void> {
 		let User = mongoose.model<IUser>('User');
 		// If no user ID exists in the JWT return a 401
 		req.headers.authorization

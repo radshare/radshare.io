@@ -17,12 +17,6 @@ class Api {
 	private readonly roomController: RoomController;
 	private readonly app: Express;
 
-	private auth = jwt({
-		secret: 'MY_SECRET', //don't keep!
-		userProperty: 'payload',
-	});
-
-
 	constructor() {
 		try {
 			this.mongoService = new MongoService();
