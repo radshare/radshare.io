@@ -1,10 +1,10 @@
 import {expect} from "chai";
+
 import {Configuration} from "../../../src/config";
 
 describe('Configuration', () => {
 	it('should load express env variables', () => {
 		let port  = 8080;
-		let host = 'localhost';
 
 		process.env.PORT = String(port);
 
