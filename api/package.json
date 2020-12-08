@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "start": "node -r ts-node/register ./src/main.ts",
-    "rebuild": "rm build && npm run build",
-    "build": "tsc"
+    "rebuild": "npm run clean && npm run build",
+    "build": "tsc --project tsconfig.production.json",
+    "clean": "rimraf ./dist"
   },
   "dependencies": {
     "cookie-parser": "~1.4.3",
@@ -19,7 +20,9 @@
     "passport": "^0.4.1",
     "passport-local": "^1.0.0",
     "typescript-logging": "^1.0.0",
-    "warframe-items": "^1.1243.0"
+    "warframe-items": "^1.1243.0",
+    "uuid": "^8.3.1",
+    "rimraf": "^3.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^8.0.4",
@@ -34,6 +37,7 @@
     "@types/morgan": "^1.9.2",
     "@types/passport": "^1.0.4",
     "@types/passport-local": "^1.0.33",
+    "@types/uuid": "^8.3.0",
     "mocha": "^8.2.1",
     "chai": "^4.2.0",
     "ts-node": "^9.1.0",
