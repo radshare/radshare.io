@@ -3,7 +3,7 @@ import {IRoom, Models} from "../schema";
 
 import {v4 as uuid} from "uuid";
 
-export class HomeTableController {
+export class RoomController {
 
 	private readonly room: Model<IRoom>;
 

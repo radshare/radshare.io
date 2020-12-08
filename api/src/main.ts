@@ -5,7 +5,7 @@ import http, {Server} from 'http';
 import jwt from "express-jwt";
 
 import {Configuration} from "./config";
-import {AuthenticationController, HomeTableController, SettingsController} from "./controllers";
+import {AuthenticationController, RoomController, SettingsController} from "./controllers";
 import {MongoService} from "./services";
 import {initialize} from "./config/passport";
 
@@ -14,7 +14,7 @@ class Api {
 	private readonly mongoService: MongoService;
 
 	private readonly authController: AuthenticationController;
-	private readonly homeController: HomeTableController;
+	private readonly roomController: RoomController;
 	private readonly app: Express;
 
 	private auth = jwt({
@@ -34,7 +34,7 @@ class Api {
 
 		this.app = express();
 		this.authController = new AuthenticationController(this.mongoService.connection);
-		this.homeController = new HomeTableController(this.mongoService.connection);
+		this.roomController = new RoomController(this.mongoService.connection);
 
 		// Use Setup
 		this.app.use(express.json());
@@ -61,8 +61,8 @@ class Api {
 		router.post('/login', this.authController.login);
 		router.get('/register', this.authController.checkEmail);
 
-		router.post('/home', this.homeController.post);
-		router.get('/home', this.homeController.get);
+		router.post('/home', this.roomController.post);
+		router.get('/home', this.roomController.get);
 
 		return router;
 	}
