@@ -1,12 +1,14 @@
 import mongoose from 'mongoose';
-import {IUser} from "../schema/user";
+import {Request, Response} from 'express';
+
+import {IUser} from "../schema";
 
 export class SettingsController {
 
 	constructor() {
 	}
 
-	public async get(req: any, res: any): Promise<void> {
+	public async get(req: Request, res: Response): Promise<void> {
 		let User = mongoose.model<IUser>('User');
 		// If no user ID exists in the JWT return a 401
 		req.headers.authorization
@@ -18,7 +20,7 @@ export class SettingsController {
 			// Otherwise continue
 			try {
 				let user = await User.findById(req.payload._id).exec();
-				res.status(200).json(user)
+				res.status(200).json(user);
 			} catch (e) {
 			}
 		}

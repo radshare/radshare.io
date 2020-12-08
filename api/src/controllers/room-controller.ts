@@ -1,7 +1,8 @@
 import {Connection, Model} from "mongoose";
-import {IRoom, Models} from "../schema";
-
+import {Request, Response} from 'express';
 import {v4 as uuid} from "uuid";
+
+import {IRoom, Models} from "../schema";
 
 export class RoomController {
 
@@ -11,7 +12,7 @@ export class RoomController {
 		this.room = connection.model<IRoom>(Models.ROOM);
 	}
 
-	public async post(req, res): Promise<void> {
+	public async post(req: Request, res: Response): Promise<void> {
 		const room = new this.room();
 		room.relic = req.body.relic;
 		room.quality = req.body.quality;
@@ -32,7 +33,7 @@ export class RoomController {
 		}
 	}
 
-	public async get(req, res): Promise<void> {
+	public async get(req: Request, res: Response): Promise<void> {
 		try {
 			let result: IRoom[] = await this.room.find().exec();
 			res.status(200);

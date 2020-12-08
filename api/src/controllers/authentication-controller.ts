@@ -1,6 +1,7 @@
 import {Model, Connection} from "mongoose";
 import passport from "passport";
 import {sign} from "jsonwebtoken";
+import {Request, Response} from 'express';
 
 import {IUser, Models} from "../schema";
 import {EncryptedPassword, PasswordEncryptor} from "../utils";
@@ -13,7 +14,7 @@ export class AuthenticationController {
 		this.user = connection.model<IUser>(Models.USER);
 	}
 
-	public async register(req, res): Promise<void> {
+	public async register(req: Request, res: Response): Promise<void> {
 		const user = new this.user();
 
 		user.username = req.body.username;
@@ -36,7 +37,7 @@ export class AuthenticationController {
 		}
 	}
 
-	public async login(req, res): Promise<void> {
+	public async login(req: Request, res: Response): Promise<void> {
 
 		passport.authenticate('local', (err, user, info) => {
 			// If Passport throws/catches an error
@@ -59,9 +60,9 @@ export class AuthenticationController {
 		})(req, res);
 	}
 
-	public async checkEmail(req, res, next: Function): Promise<void> {
+	public async checkEmail(req: Request, res: Response, next: Function): Promise<void> {
 		try {
-			let user: IUser|null = await this.user.findOne({email: req.query.email}, 'email -_id').exec();
+			let user: IUser|null = await this.user.findOne({email: req.query.email as string}, 'email -_id').exec();
 
 			if (!user) {
 				res.status(404);
