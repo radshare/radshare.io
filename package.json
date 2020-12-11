@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "start": "cd api && npm start",
-    "build": "cd client && npm build"
+    "postinstall": "cd client && ng build --prod"
   }
 }
