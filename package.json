@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ./api/bin/www",
-    "postinstall": "cd client && npm install"
+    "start": "cd api && npm start",
+    "build": "cd client && npm build"
   }
 }
