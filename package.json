@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "cd api && npm start",
+    "preinstall": "npm install -g angular-cli",
     "postinstall": "cd client && ng build"
   }
 }
