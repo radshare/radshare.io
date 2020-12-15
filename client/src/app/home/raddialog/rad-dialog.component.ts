@@ -1,6 +1,5 @@
 import {Component, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {FormControl} from '@angular/forms';
-import Items from 'warframe-items';
 import {ReplaySubject, Subject} from 'rxjs';
 import {MatSelect} from '@angular/material/select';
 import {takeUntil} from 'rxjs/operators';
@@ -38,7 +37,9 @@ export class RadDialogComponent implements OnInit, OnDestroy {
   @ViewChild('singleSelect', {static: true}) singleSelect: MatSelect;
 
   constructor(private relicService: RelicService, private dialogRef: MatDialogRef<RadDialogComponent>) {
-    this.relicsNames = this.toRelicName(this.relicsList);
+    this.relicsNames = [];
+    Relics.forEach(element => this.relicsNames.push({name: element.name}));
+    this.relicsNames = this.toRelicName(this.relicsNames);
   }
 
   ngOnInit(): void {
@@ -54,7 +55,7 @@ export class RadDialogComponent implements OnInit, OnDestroy {
     this._onDestroy.complete();
   }
 
-  toRelicName(relicsArray: Items): RelicName[]{
+  toRelicName(relicsArray: RelicName[]): RelicName[]{
     let returnArray: RelicName[] = [];
     let nameArray: string[] = [];
     let regexp: RegExp = new RegExp('( Intact| Flawless| Exceptional| Radiant)');
