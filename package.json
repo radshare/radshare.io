@@ -5,5 +5,8 @@
   "scripts": {
     "start": "cd api && npm start",
     "heroku-postbuild": "cd client && npm install && npm build"
+  },
+  "dependencies": {
+    "ts-node": "~8.3.0"
   }
 }
