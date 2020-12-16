@@ -6,7 +6,7 @@ import {takeUntil} from 'rxjs/operators';
 import {RadRoom} from '../home.component';
 import {RelicService} from '../../relic.service';
 import {MatDialogRef} from '@angular/material/dialog';
-import Relics from 'node_modules/warframe-items/data/json/Relics.json';
+import Relics from 'src/assets/Relics.json';
 //import * as $ from "jquery";
 
 export interface RelicName {
