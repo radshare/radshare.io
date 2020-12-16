@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "devStart": "node -r ts-node/register ./src/main.ts",
-    "start": "node src/main.ts",
+    "start": "node dist/main.js",
     "rebuild": "npm run clean && npm run build",
     "build": "tsc --project tsconfig.production.json",
     "clean": "rimraf ./dist"
