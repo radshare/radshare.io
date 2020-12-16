@@ -6,7 +6,7 @@ import {takeUntil} from 'rxjs/operators';
 import {RadRoom} from '../home.component';
 import {RelicService} from '../../relic.service';
 import {MatDialogRef} from '@angular/material/dialog';
-import Relics from 'src/assets/Relics.json';
+var relics = require('src/assets/Relics.json');
 //import * as $ from "jquery";
 
 export interface RelicName {
@@ -39,7 +39,7 @@ export class RadDialogComponent implements OnInit, OnDestroy {
 
   constructor(private relicService: RelicService, private dialogRef: MatDialogRef<RadDialogComponent>) {
     this.relicsNames = [];
-    Relics.forEach(element => this.relicsNames.push({name: element.name}));
+    relics.forEach(element => this.relicsNames.push({name: element.name}));
     this.relicsNames = this.toRelicName(this.relicsNames);
   }
 
