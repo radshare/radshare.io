@@ -9,8 +9,8 @@
   "dependencies": {
     "typescript": "4.0.5"
   },
-  "engines" : {
-    "npm" : "6.14.8",
-    "node" : "12.14.1"
+  "engines": {
+    "npm": "6.14.8",
+    "node": "12.14.1"
   }
 }
