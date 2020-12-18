@@ -2,6 +2,7 @@ import express, {Express, Router} from 'express';
 import cookieParser from "cookie-parser";
 import passport from "passport";
 import http, {Server} from 'http';
+import path from "path";
 import jwt from "express-jwt";
 
 import {Configuration} from "./config";
