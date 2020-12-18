@@ -34,6 +34,7 @@ class Api {
 		// Use Setup
 		this.app.use(express.json());
 		this.app.use(express.urlencoded({ extended: false }));
+		this.app.use(express.static(path.join(__dirname, 'dist')));
 		this.app.use(cookieParser());
 		this.app.use("/api", this.Routes());
 
