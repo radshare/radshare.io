@@ -2,7 +2,6 @@ import express, {Express, Router} from 'express';
 import cookieParser from "cookie-parser";
 import passport from "passport";
 import http, {Server} from 'http';
-import path from "path";
 import jwt from "express-jwt";
 
 import {Configuration} from "./config";
@@ -35,9 +34,9 @@ class Api {
 		// Use Setup
 		this.app.use(express.json());
 		this.app.use(express.urlencoded({ extended: false }));
-		this.app.use(express.static(path.join(__dirname, 'dist/client')));
+		this.app.use(express.static('/app/client/dist/client'));
 		this.app.get('*', (req, res) => {
-			res.sendFile(path.join(__dirname, 'client/index.html'))
+			res.sendFile('/app/client/dist/client/index.html')
 		});
 		this.app.use(cookieParser());
 		this.app.use("/api", this.Routes());
