@@ -39,7 +39,7 @@ class Api {
 			res.sendFile('/app/client/dist/client/index.html')
 		});
 		this.app.use(cookieParser());
-		this.app.use("/api", this.Routes());
+		this.app.use("/app/api", this.Routes());
 
 		//	auth
 		initialize(this.mongoService.connection)
