@@ -37,8 +37,6 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ],
-              "browserTarget": "app:build:production",
-              "proxyConfig": "src/proxy-prod.conf.json",
               "optimization": true,
               "outputHashing": "all",
               "sourceMap": false,
@@ -65,6 +63,12 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
             "browserTarget": "client:build"
+          },
+          "configurations": {
+            "production": {
+              "browserTarget": "client:build:production",
+              "proxyConfig": "src/proxy-prod.conf.json"
+            }
           }
         },
         "extract-i18n": {
