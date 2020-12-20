@@ -35,11 +35,11 @@ class Api {
 		this.app.use(express.json());
 		this.app.use(express.urlencoded({ extended: false }));
 		this.app.use(express.static('/app/client/dist/client'));
+		this.app.use(cookieParser());
+		this.app.use("/api", this.Routes());
 		this.app.get('*', (req, res) => {
 			res.sendFile('/app/client/dist/client/index.html')
 		});
-		this.app.use(cookieParser());
-		this.app.use("/app/api", this.Routes());
 
 		//	auth
 		initialize(this.mongoService.connection)
