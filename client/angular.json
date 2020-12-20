@@ -37,6 +37,8 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ],
+              "browserTarget": "app:build:production",
+              "proxyConfig": "src/proxy-prod.conf.json",
               "optimization": true,
               "outputHashing": "all",
               "sourceMap": false,

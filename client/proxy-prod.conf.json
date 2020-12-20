@@ -1,0 +1,6 @@
+{
+  "/api": {
+    "target": "https://radshare-io.herokuapp.com",
+    "secure": false
+  }
+}
