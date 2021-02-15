@@ -20,7 +20,6 @@ export interface RelicName {
 })
 
 export class RadDialogComponent implements OnInit, OnDestroy {
-  //relicslist2: any;
   relicsNames: RelicName[];
   relicCtrl: FormControl = new FormControl();
   relicFilterCtrl: FormControl = new FormControl();
