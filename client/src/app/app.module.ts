@@ -23,6 +23,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { ReactiveFormsModule } from '@angular/forms';
 import { NgxMatSelectSearchModule } from 'ngx-mat-select-search';
 import { RadgroupComponent } from './home/radgroup/radgroup.component';
+import { RoomdialogComponent } from './home/roomdialog/roomdialog.component';
 
 @NgModule({
   declarations: [
@@ -36,6 +37,7 @@ import { RadgroupComponent } from './home/radgroup/radgroup.component';
     WhitespaceValidator,
     RadDialogComponent,
     RadgroupComponent,
+    RoomdialogComponent,
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule,
     HttpClientModule, BrowserAnimationsModule, ReactiveFormsModule, MatPaginatorModule,
