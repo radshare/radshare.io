@@ -48,7 +48,7 @@ export class AuthenticationController {
 
 			// If a user is found
 			if (user) {
-				const token = user.generateJwt();
+				const token = this.generateToken(user);
 				res.status(200);
 				res.json({
 					token: token
