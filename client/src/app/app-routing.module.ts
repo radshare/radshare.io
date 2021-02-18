@@ -11,7 +11,7 @@ const routes: Routes = [
   { path: "", component: HomeComponent },
   { path: "login", component: LoginComponent, canActivate: [NonAuthGuard] },
   { path: "register", component: RegisterComponent, canActivate: [NonAuthGuard] },
-  { path: "settings", component: SettingsComponent, canActivate: [AuthGuard] }
+  { path: "settings", component: SettingsComponent, canActivate: [AuthGuard] },
 ];
 
 @NgModule({
