@@ -6,7 +6,8 @@ import {takeUntil} from 'rxjs/operators';
 import {RadRoom} from '../home.component';
 import {RelicService} from '../../relic.service';
 import {MatDialogRef} from '@angular/material/dialog';
-const wfItems = require('warframe-items');
+var relics = require('src/assets/Relics.json');
+//import * as $ from "jquery";
 
 export interface RelicName {
   name: string;
@@ -19,7 +20,6 @@ export interface RelicName {
 })
 
 export class RadDialogComponent implements OnInit, OnDestroy {
-  relicsList: Items = new wfItems({category : ['Relics']});
   relicsNames: RelicName[];
   relicCtrl: FormControl = new FormControl();
   relicFilterCtrl: FormControl = new FormControl();
@@ -38,11 +38,18 @@ export class RadDialogComponent implements OnInit, OnDestroy {
 
   constructor(private relicService: RelicService, private dialogRef: MatDialogRef<RadDialogComponent>) {
     this.relicsNames = [];
-    Relics.forEach(element => this.relicsNames.push({name: element.name}));
+    relics.forEach(element => this.relicsNames.push({name: element.name}));
     this.relicsNames = this.toRelicName(this.relicsNames);
   }
 
   ngOnInit(): void {
+    /**
+    $.getJSON(
+      "https://raw.githubusercontent.com/WFCD/warframe-items/12e4280ead84524beb528ec62193d3775bf36580/data/json/Relics.json",
+      (data) => {
+        $.each(data, () => {})
+      });
+     **/
     this.filteredRelics.next(this.relicsNames.slice());
     this.relicFilterCtrl.valueChanges.pipe(takeUntil(this._onDestroy))
       .subscribe(() => {
@@ -91,7 +98,7 @@ export class RadDialogComponent implements OnInit, OnDestroy {
   newRadRoom(){
     this.newRoom.relic = this.relicCtrl.value.name;
     this.relicService.newRoom(this.newRoom).subscribe(returnedRoom => {
-      this.dialogRef.close(true);
+      this.dialogRef.close(returnedRoom);
     });
   }
 
