@@ -9,6 +9,7 @@ import {merge, of} from 'rxjs';
 import {MatTableDataSource} from '@angular/material/table';
 import {AuthenticationService} from '../authentication.service';
 import {Router} from '@angular/router';
+import {RoomdialogComponent} from './roomdialog/roomdialog.component';
 
 export interface RadRoom {
   expirationDate?: number;
@@ -34,29 +35,11 @@ export class HomeComponent implements AfterViewInit{
   @ViewChild(MatSort) sort: MatSort;
 
   constructor(private relics: RelicService, private auth: AuthenticationService,
-              private radDiaglog: MatDialog, private router: Router) {}
+              private radDialog: MatDialog, private roomDialog: MatDialog, private router: Router) {}
 
   ngAfterViewInit(){
     this.sort.sortChange.subscribe(() => this.paginator.pageIndex = 0);
     this.loadRadshares();
-  }
-
-  openNewRadDialog() {
-    if (!this.auth.isLoggedIn()){
-      this.router.navigateByUrl("/login")
-    }
-    else{
-      const dialogConfig = new MatDialogConfig();
-
-      dialogConfig.autoFocus = true;
-      this.radDiaglog.open(RadDialogComponent, dialogConfig)
-        .afterClosed().subscribe( (roomCreated) => {
-          if (roomCreated){
-            this.loadRadshares();
-          }
-        }
-      );
-    }
   }
 
   loadRadshares():void {
@@ -92,7 +75,46 @@ export class HomeComponent implements AfterViewInit{
     });
   }
 
+  redirectToLogin(){
+    this.router.navigateByUrl("/login");
+  }
+
+  openNewRadDialog() {
+    if (!this.auth.isLoggedIn()){
+      this.redirectToLogin();
+    }
+    else{
+      const dialogConfig = new MatDialogConfig();
+      dialogConfig.autoFocus = true;
+
+      this.radDialog.open(RadDialogComponent, dialogConfig)
+        .afterClosed().subscribe( (roomCreated) => {
+          if (roomCreated){
+            console.log(roomCreated);
+            window.location.reload();
+          }
+        }
+      );
+    }
+  }
+
+  openJoinRoomDialog(chosenRoom: RadRoom) {
+    if (!this.auth.isLoggedIn()){
+      this.redirectToLogin();
+    }
+    else{
+      const dialogConfig = new MatDialogConfig();
+      dialogConfig.autoFocus = true;
+
+      this.roomDialog.open(RoomdialogComponent, dialogConfig)
+        .afterClosed().subscribe((confirmationTrue) => {
+        this.router.navigateByUrl("/")
+      })
+    }
+  }
+
   joinRoomPrompt(row: any) {
     console.log(row);
+    this.openJoinRoomDialog(row);
   }
 }
