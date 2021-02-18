@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+
     "devStart": "node -r ts-node/register ./src/main.ts",
     "start": "node dist/main.js",
     "rebuild": "npm run clean && npm run build",
