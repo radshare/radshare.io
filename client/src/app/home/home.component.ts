@@ -98,7 +98,7 @@ export class HomeComponent implements AfterViewInit{
     }
   }
 
-  openJoinRoomDialog() {
+  openJoinRoomDialog(chosenRoom: RadRoom) {
     if (!this.auth.isLoggedIn()){
       this.redirectToLogin();
     }
@@ -115,6 +115,6 @@ export class HomeComponent implements AfterViewInit{
 
   joinRoomPrompt(row: any) {
     console.log(row);
-    this.openJoinRoomDialog();
+    this.openJoinRoomDialog(row);
   }
 }
