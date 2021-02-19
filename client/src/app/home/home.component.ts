@@ -9,7 +9,7 @@ import {merge, of} from 'rxjs';
 import {MatTableDataSource} from '@angular/material/table';
 import {AuthenticationService} from '../authentication.service';
 import {Router} from '@angular/router';
-import {RoomdialogComponent} from './roomdialog/roomdialog.component';
+import {RoomDialogComponent} from './roomdialog/room-dialog.component';
 
 export interface RadRoom {
   expirationDate?: number;
@@ -103,13 +103,13 @@ export class HomeComponent implements AfterViewInit{
       this.redirectToLogin();
     }
     else{
-      const dialogConfig = new MatDialogConfig();
-      dialogConfig.autoFocus = true;
+      //const dialogConfig = new MatDialogConfig();
+      //dialogConfig.autoFocus = true;
 
-      this.roomDialog.open(RoomdialogComponent, dialogConfig)
+      this.roomDialog.open(RoomDialogComponent, {data: {room: chosenRoom}, })
         .afterClosed().subscribe((confirmationTrue) => {
         this.router.navigateByUrl("/")
-      })
+      });
     }
   }
 
