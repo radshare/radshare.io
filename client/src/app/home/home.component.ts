@@ -108,7 +108,7 @@ export class HomeComponent implements AfterViewInit{
 
       this.roomDialog.open(RoomDialogComponent, {data: {room: chosenRoom}, })
         .afterClosed().subscribe((confirmationTrue) => {
-          if (confirmationTrue){this.router.navigateByUrl("/room")}
+          if (confirmationTrue){this.router.navigateByUrl("/room", { skipLocationChange: true })}
       });
     }
   }
