@@ -43,6 +43,7 @@ export class HomeComponent implements AfterViewInit{
   }
 
   loadRadshares():void {
+    // Load radshare rooms into the table on page load
     merge()
       .pipe(
         startWith({}),
@@ -69,6 +70,7 @@ export class HomeComponent implements AfterViewInit{
           return of([]);
         })
       ).subscribe(data => {
+        // Success, set table reference to data
       this.dataSource = new MatTableDataSource(data);
       this.dataSource.paginator = this.paginator;
       this.dataSource.sort = this.sort;
@@ -77,6 +79,12 @@ export class HomeComponent implements AfterViewInit{
 
   redirectToLogin(){
     this.router.navigateByUrl("/login");
+  }
+
+  gotoRoom(returnedRoom: string){
+    this.relics.joinRoom(returnedRoom).subscribe();
+
+    this.router.navigateByUrl("/room", { skipLocationChange: true })
   }
 
   openNewRadDialog() {
@@ -89,27 +97,18 @@ export class HomeComponent implements AfterViewInit{
 
       this.radDialog.open(RadDialogComponent, dialogConfig)
         .afterClosed().subscribe( (roomCreated) => {
+          // A room was returned, so put it into the database
           if (roomCreated){
             console.log(roomCreated);
-            window.location.reload();
+            this.relics.newRoom(roomCreated).subscribe(returnedRoom => {
+              console.log("Created room: ");
+              console.log(returnedRoom);
+              // Register the user to the room and bring them to the room page
+              this.gotoRoom(returnedRoom.data._id);
+              });
           }
         }
       );
-    }
-  }
-
-  openJoinRoomDialog(chosenRoom: RadRoom) {
-    if (!this.auth.isLoggedIn()){
-      this.redirectToLogin();
-    }
-    else{
-      //const dialogConfig = new MatDialogConfig();
-      //dialogConfig.autoFocus = true;
-
-      this.roomDialog.open(RoomDialogComponent, {data: {room: chosenRoom}, })
-        .afterClosed().subscribe((confirmationTrue) => {
-          if (confirmationTrue){this.router.navigateByUrl("/room", { skipLocationChange: true })}
-      });
     }
   }
 
@@ -117,4 +116,20 @@ export class HomeComponent implements AfterViewInit{
     console.log(row);
     this.openJoinRoomDialog(row);
   }
+
+  openJoinRoomDialog(chosenRoom: RadRoom) {
+    if (!this.auth.isLoggedIn()){
+      this.redirectToLogin();
+    }
+    else{
+      this.roomDialog.open(RoomDialogComponent, {data: {room: chosenRoom}, })
+        .afterClosed().subscribe((confirmationTrue) => {
+          if (confirmationTrue){
+            // User wants to join the room
+            this.gotoRoom(confirmationTrue.room._id);
+          }
+      });
+    }
+  }
+
 }

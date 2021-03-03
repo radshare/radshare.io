@@ -20,7 +20,7 @@ export class RoomDialogComponent implements OnInit {
   }
 
   joinRoom() {
-    this.dialogRef.close(true);
+    this.dialogRef.close(this.data);
   }
 
 }

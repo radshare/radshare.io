@@ -17,4 +17,8 @@ export class RelicService {
   newRoom(newRoom: RadRoom): Observable<any> {
     return this.http.post(`/api/home`, newRoom);
   }
+
+  joinRoom(returnedRoom: string): Observable<any> {
+    
+  }
 }

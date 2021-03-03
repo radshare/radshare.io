@@ -96,10 +96,9 @@ export class RadDialogComponent implements OnInit, OnDestroy {
   }
 
   newRadRoom(){
+    // User created a new room, so send the new room request back to the home component
     this.newRoom.relic = this.relicCtrl.value.name;
-    this.relicService.newRoom(this.newRoom).subscribe(returnedRoom => {
-      this.dialogRef.close(returnedRoom);
-    });
+    this.dialogRef.close(this.newRoom);
   }
 
 }
