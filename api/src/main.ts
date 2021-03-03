@@ -67,6 +67,8 @@ class Api {
 			(req, res) => this.roomController.post(req, res));
 		router.get('/home',
 			((req, res) => this.roomController.get(req, res)));
+		router.get('*',
+			(req, res) => {});
 
 		return router;
 	}
@@ -85,4 +87,4 @@ class Api {
 }
 
 let api = new Api();
-api.Start()
+api.Start();

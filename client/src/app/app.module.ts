@@ -24,6 +24,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { NgxMatSelectSearchModule } from 'ngx-mat-select-search';
 import { RadgroupComponent } from './home/radgroup/radgroup.component';
 import { RoomDialogComponent } from './home/roomdialog/room-dialog.component';
+import { PageNotFoundComponent } from './page-not-found/page-not-found.component';
 
 @NgModule({
   declarations: [
@@ -38,6 +39,7 @@ import { RoomDialogComponent } from './home/roomdialog/room-dialog.component';
     RadDialogComponent,
     RadgroupComponent,
     RoomDialogComponent,
+    PageNotFoundComponent,
   ],
   imports: [BrowserModule, AppRoutingModule, FormsModule,
     HttpClientModule, BrowserAnimationsModule, ReactiveFormsModule, MatPaginatorModule,
