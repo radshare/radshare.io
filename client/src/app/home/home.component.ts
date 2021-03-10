@@ -82,8 +82,9 @@ export class HomeComponent implements AfterViewInit{
   }
 
   gotoRoom(returnedRoom: string){
+    // Register the user to the room
     this.relics.joinRoom(returnedRoom).subscribe();
-
+    // Navigate to the room page
     this.router.navigateByUrl("/room", { skipLocationChange: true })
   }
 

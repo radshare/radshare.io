@@ -11,6 +11,8 @@ export class PageNotFoundComponent implements OnInit {
   constructor(private router: Router) { }
 
   ngOnInit(): void {
+    // Reach this page if using an invalid route.
+    // Redirect back to the home page
     this.router.navigateByUrl("/");
   }
 

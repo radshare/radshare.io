@@ -2,13 +2,13 @@ import {Connection, Model} from "mongoose";
 import {Request, Response} from 'express';
 import {v4 as uuid} from "uuid";
 
-import {IRoom, Models} from "../schema";
+import {IRoom, IUser, Models} from '../schema';
 
 export class RoomController {
 
 	private readonly room: Model<IRoom>;
 
-	constructor(connection: Connection) {
+	constructor(private readonly connection: Connection) {
 		this.room = connection.model<IRoom>(Models.ROOM);
 	}
 
@@ -52,4 +52,29 @@ export class RoomController {
 			res.status(500);
 		}
 	}
+
+	public async put(req: any, res: Response): Promise<void> {
+		let User = this.connection.model<IUser>('User');
+
+		// If no user ID exists in the JWT return a 401
+		if (!req.payload._id) {
+			res.status(401).json({
+				message: 'UnauthorizedError: login required'
+			});
+			return
+		}
+
+		try {
+			let user = await User.findById(req.payload._id).exec();
+			try{
+				console.log('Returned user: ', user)
+			}
+			catch(e){
+				console.error('Room ID not in database')
+			}
+		} catch (e) {
+			console.error('User ID not in database', e)
+		}
+	}
+
 }

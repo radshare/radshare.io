@@ -42,7 +42,7 @@ class Api {
 		});
 
 		//	auth
-		initialize(this.mongoService.connection)
+		initialize(this.mongoService.connection);
 		this.app.use(passport.initialize());
 
 	}
@@ -66,9 +66,15 @@ class Api {
 		router.post('/home',
 			(req, res) => this.roomController.post(req, res));
 		router.get('/home',
-			((req, res) => this.roomController.get(req, res)));
+			(req, res) => this.roomController.get(req, res));
+		router.put('/room',
+			jwt({
+				secret: 'MY_SECRET', //don't keep!
+				userProperty: 'payload',
+			}),
+			(req, res) => this.roomController.put(req, res));
 		router.get('*',
-			(req, res) => {});
+			(req, res) => {console.log('Error: Invalid API Request')});
 
 		return router;
 	}
