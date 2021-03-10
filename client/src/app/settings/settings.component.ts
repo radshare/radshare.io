@@ -11,6 +11,7 @@ export class SettingsComponent implements OnInit {
   constructor(private auth: AuthenticationService) {}
 
   ngOnInit() {
+    // Verify token with database
     this.auth.settings().subscribe(
       user => {
         this.details = user;

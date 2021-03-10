@@ -20,7 +20,9 @@ export class SettingsController {
 		}
 
 		try {
-			let user = await User.findById(req.payload._id).exec();
+			// Verify that the user ID exists in the database and return the cooresponding usenrame/email
+			let user = await User.findById(req.payload._id, {email : 1, username : 1}).exec();
+			console.log('Contents of user after database query: ', user);
 			res.status(200).json(user);
 		} catch (e) {
 			console.error('Error retrieving user settings', e)
