@@ -8,14 +8,14 @@ import {EncryptedPassword, PasswordEncryptor} from "../utils";
 
 export class AuthenticationController {
 
-	private readonly user: Model<IUser>;
+	private readonly User: Model<IUser>;
 
 	constructor(connection: Connection) {
-		this.user = connection.model<IUser>(Models.USER);
+		this.User = connection.model<IUser>(Models.USER);
 	}
 
 	public async register(req: Request, res: Response): Promise<void> {
-		const user = new this.user();
+		const user = new this.User();
 
 		user.username = req.body.username;
 		user.email = req.body.email;
@@ -62,7 +62,7 @@ export class AuthenticationController {
 
 	public async checkEmail(req: Request, res: Response, next: Function): Promise<void> {
 		try {
-			let user: IUser|null = await this.user.findOne({email: req.query.email as string}, 'email -_id').exec();
+			let user: IUser|null = await this.User.findOne({email: req.query.email as string}, 'email -_id').exec();
 
 			if (!user) {
 				res.status(404);
@@ -73,7 +73,7 @@ export class AuthenticationController {
 				.status(200)
 				.json(user);
 		} catch (e) {
-			console.error('Error checking email')
+			console.error('Error checking email');
 			return next(e)
 		}
 	}
@@ -91,5 +91,20 @@ export class AuthenticationController {
 			},
 			'MY_SECRET'
 		); // DO NOT KEEP YOUR SECRET IN THE CODE!
+	}
+
+	// Checks if the provided usr exists in the database
+    public async checkTokenCredentials(req: any) {
+		if (!req.payload._id) {
+			return false
+		}
+		try {
+			// Verify that the user ID exists in the database
+			let user = await this.User.findById(req.payload._id).exec();
+			return !!user;
+		} catch (e) {
+			console.error('User ID not in database', e);
+			return false;
+		}
 	}
 }

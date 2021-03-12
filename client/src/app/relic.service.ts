@@ -23,11 +23,13 @@ export class RelicService {
   }
 
   newRoom(newRoom: RadRoom): Observable<any> {
-    return this.http.post(`/api/home`, newRoom);
+    return this.http.post(`/api/home`, newRoom, {
+      headers: {Authorization: `Bearer ${this.getToken()}`}
+    });
   }
 
   joinRoom(roomID: string): Observable<any> {
-    console.log('Joining room...');
+    console.log('Room from relic service: ', roomID);
     return this.http.put('/api/room', roomID, {
       headers: {Authorization: `Bearer ${this.getToken()}`}
     });

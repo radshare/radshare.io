@@ -22,7 +22,7 @@ class Api {
 		try {
 			this.mongoService = new MongoService();
 		} catch (e) {
-			console.error(e)
+			console.error(e);
 			process.exit(1);
 		}
 
@@ -47,32 +47,42 @@ class Api {
 
 	}
 
+	private decodeToken(): jwt.RequestHandler {
+	    // Decodes the header and places details in req.payload
+        return jwt({
+            secret: 'MY_SECRET', //don't keep!
+            userProperty: 'payload',
+        })
+    }
+
 	private Routes(): Router {
 		let router: Router = express.Router();
-		router.get('/settings',
-			jwt({
-				secret: 'MY_SECRET', //don't keep!
-				userProperty: 'payload',
-			}),
-			(req, res) => this.settingsController.get(req, res));
-
+		router.get('/settings', this.decodeToken(),
+					(req, res) => this.settingsController.get(req, res));
 		router.post('/register',
 			(req, res) => this.authController.register(req, res));
 		router.post('/login',
 			(req, res) => this.authController.login(req, res));
 		router.get('/register',
 			(req, res, next) => this.authController.checkEmail(req, res, next));
-
-		router.post('/home',
-			(req, res) => this.roomController.post(req, res));
+		router.post('/home', this.decodeToken(),
+					(req, res) => {
+						if (this.authController.checkTokenCredentials(req)) {
+							this.roomController.post(req, res);
+						} else {
+							res.status(401).json({message : 'Invalid token'});
+						}
+					});
 		router.get('/home',
 			(req, res) => this.roomController.get(req, res));
-		router.put('/room',
-			jwt({
-				secret: 'MY_SECRET', //don't keep!
-				userProperty: 'payload',
-			}),
-			(req, res) => this.roomController.put(req, res));
+		router.put('/room', this.decodeToken(),
+					(req, res) => {
+						if (this.authController.checkTokenCredentials(req)) {
+							this.roomController.put(req, res);
+						} else {
+							res.status(401).json({message : 'Invalid token'});
+						}
+					});
 		router.get('*',
 			(req, res) => {console.log('Error: Invalid API Request')});
 
