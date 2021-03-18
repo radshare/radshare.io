@@ -13,13 +13,13 @@ export class RoomController {
 	}
 
 	public async post(req: any, res: Response): Promise<void> {
-		const room = new this.room();
+		let room = new this.room();
 		room.relic = req.body.relic;
 		room.quality = req.body.quality;
 		room.platform = req.body.platform;
 		room.expirationDate = Date.now() + 7200000;
 		room.roomCode = uuid();
-		room.tenno = req.body.tenno;
+		room.tenno.push({email: req.payload.email, username: req.payload.username});
 
 		try {
 			let result: IRoom = await room.save();
@@ -53,7 +53,11 @@ export class RoomController {
 
 	public async put(req: any, res: Response): Promise<void> {
 		try{
-        	//this.room.updateOne()
+		    let userDetails = {email: req.payload.email, username: req.payload.username};
+        	this.room.updateOne({id: req.body.id},
+				{$push: {tenno: userDetails}});
+        	let result : IRoom[] = await this.room.find().exec();
+        	result.forEach(r => console.log(r));
 		}
 		catch(e){
 			console.error('Room ID not in database')

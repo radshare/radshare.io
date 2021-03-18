@@ -16,7 +16,6 @@ export interface RadRoom {
   relic: string;
   quality: string;
   platform: string;
-  tenno: string;
   code?: string;
 }
 
@@ -100,10 +99,7 @@ export class HomeComponent implements AfterViewInit{
         .afterClosed().subscribe( (roomCreated) => {
           // A room was returned, so put it into the database
           if (roomCreated){
-            console.log(roomCreated);
             this.relics.newRoom(roomCreated).subscribe(returnedRoom => {
-              console.log("Created room: ");
-              console.log(returnedRoom);
               // Register the user to the room and bring them to the room page
               this.gotoRoom(returnedRoom.data._id);
               });

@@ -30,7 +30,7 @@ export class RelicService {
 
   joinRoom(roomID: string): Observable<any> {
     console.log('Room from relic service: ', roomID);
-    return this.http.put('/api/room', roomID, {
+    return this.http.put('/api/room', {id: roomID}, {
       headers: {Authorization: `Bearer ${this.getToken()}`}
     });
   }
