@@ -6,7 +6,7 @@ export interface IRoom extends Document {
 	platform: string,
 	creationDate: Date,
 	expirationDate: number,
-	tenno: string,
+	tenno: Array<{email: string, username: string}>,
 	roomCode: string
 }
 
@@ -38,10 +38,18 @@ export class RoomSchema extends Schema<IRoom> {
 				type: Number,
 				required: true
 			},
-			tenno: {
-				type: String,
-				required: true
-			},
+			tenno: [
+				{email: {
+					type: String,
+					required: true,
+					unique: true
+				},
+				username: {
+					type: String,
+					required: true
+				}}
+			]
+			,
 			roomCode: {
 				type: String,
 				required: true,
