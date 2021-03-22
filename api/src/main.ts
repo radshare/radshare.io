@@ -74,13 +74,21 @@ class Api {
 						}
 					});
 		router.get('/home',
-			(req, res) => this.roomController.get(req, res));
+			(req, res) => this.roomController.getAllRadshares(req, res));
 		router.put('/room', this.decodeToken(),
 					(req, res) => {
 						if (this.authController.checkTokenCredentials(req)) {
-							this.roomController.put(req, res);
+							this.roomController.putUser(req, res);
 						} else {
 							res.status(401).json({message : 'Invalid token'});
+						}
+					});
+		router.get('/room/*', this.decodeToken(),
+					(req, res) => {
+						if (this.authController.checkTokenCredentials(req)) {
+							this.roomController.getRoom(req, res);
+						} else {
+							res.status(401).json({message: 'Invalid token'});
 						}
 					});
 		router.get('*',

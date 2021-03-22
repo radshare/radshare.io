@@ -82,8 +82,10 @@ export class HomeComponent implements AfterViewInit{
 
   gotoRoom(returnedRoom: string){
     // Register the user to the room
-    this.relics.joinRoom(returnedRoom).subscribe();
-    // Navigate to the room page
+    this.relics.joinRoom(returnedRoom).subscribe(() => {
+    });
+    // Set the user's registered room in the relic service and navigate to the page
+    this.relics.setRegisteredRoomID(returnedRoom);
     this.router.navigateByUrl("/room", { skipLocationChange: true })
   }
 
@@ -97,7 +99,7 @@ export class HomeComponent implements AfterViewInit{
 
       this.radDialog.open(RadDialogComponent, dialogConfig)
         .afterClosed().subscribe( (roomCreated) => {
-          // A room was returned, so put it into the database
+          // A room was returned, so putUser it into the database
           if (roomCreated){
             this.relics.newRoom(roomCreated).subscribe(returnedRoom => {
               // Register the user to the room and bring them to the room page
@@ -110,7 +112,6 @@ export class HomeComponent implements AfterViewInit{
   }
 
   joinRoomPrompt(row: any) {
-    console.log(row);
     this.openJoinRoomDialog(row);
   }
 
@@ -120,10 +121,10 @@ export class HomeComponent implements AfterViewInit{
     }
     else{
       this.roomDialog.open(RoomDialogComponent, {data: {room: chosenRoom}, })
-        .afterClosed().subscribe((confirmationTrue) => {
-          if (confirmationTrue){
+        .afterClosed().subscribe((confirmedRoom) => {
+          if (confirmedRoom){
             // User wants to join the room
-            this.gotoRoom(confirmationTrue.room._id);
+            this.gotoRoom(confirmedRoom.room._id);
           }
       });
     }

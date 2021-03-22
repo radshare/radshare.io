@@ -31,7 +31,7 @@ export class RoomController {
 		}
 	}
 
-	public async get(req: Request, res: Response): Promise<void> {
+	public async getAllRadshares(req: Request, res: Response): Promise<void> {
 		try {
 			let result: IRoom[] = await this.room.find().exec();
 
@@ -51,17 +51,39 @@ export class RoomController {
 		}
 	}
 
-	public async put(req: any, res: Response): Promise<void> {
+	public async putUser(req: any, res: Response): Promise<void> {
 		try{
 		    let userDetails = {email: req.payload.email, username: req.payload.username};
         	this.room.updateOne({id: req.body.id},
 				{$push: {tenno: userDetails}});
-        	let result : IRoom[] = await this.room.find().exec();
-        	result.forEach(r => console.log(r));
+        	res.status(200);
 		}
 		catch(e){
-			console.error('Room ID not in database')
+			console.error('Room ID not in database');
+			res.status(500);
+			res.json(e);
 		}
 	}
 
+	public async getRoom(req: any, res: Response): Promise<void>{
+		try{
+			let result: IRoom | null = await this.room.findById(req.url.substring(6)).exec();
+			if (!result){
+				console.warn('Room not found for request', req);
+				res.status(404);
+				return;
+			}
+			else{
+				res.status(200);
+				res.json({
+					result
+				});
+			}
+		}
+		catch(e){
+			console.error('Room ID not in database');
+			res.status(500);
+			res.json(e);
+		}
+	}
 }
