@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import {Observable} from 'rxjs';
-import {RadRoom} from './home/home.component';
+import {RadRoom} from '../home/home.component';
 import {HttpClient} from '@angular/common/http';
 
 @Injectable({
@@ -43,5 +43,11 @@ export class RelicService {
     return this.http.get(('/api/room/' + this.registeredRoomID),
       {headers: {Authorization: `Bearer ${this.getToken()}`}
     });
+  }
+
+  leaveRoom(roomID: string): Observable<any> {
+    return this.http.put('/api/room/0', {id: roomID},
+      {headers: {Authorization: `Bearer ${this.getToken()}`}
+      });
   }
 }
