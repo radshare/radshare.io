@@ -68,7 +68,6 @@ export class AuthenticationController {
 				res.status(404);
 			}
 
-			console.log(user);
 			res
 				.status(200)
 				.json(user);
