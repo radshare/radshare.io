@@ -3,6 +3,7 @@
   position: relative;
   min-height: 200px;
   width: 90%;
+  height: 70vh;
   margin: auto;
 }
 
@@ -43,7 +44,8 @@ table {
   position: fixed;
   left: 50%;
   transform: translate(-50%, 0);
-  bottom: 5%;
+  bottom: 10%;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 100px;
+  background-color: #919fff;
 }
