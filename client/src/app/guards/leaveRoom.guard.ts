@@ -6,8 +6,8 @@ import { Observable } from 'rxjs';
   providedIn: 'root'
 })
 export class LeaveRoomGuard implements CanDeactivate<unknown> {
-  constructor(){}
 
+  constructor() {}
 
   canDeactivate(
     component: unknown, currentRoute: ActivatedRouteSnapshot,
@@ -15,5 +15,4 @@ export class LeaveRoomGuard implements CanDeactivate<unknown> {
     Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
     return confirm('Are you sure you want to leave the radshare?');
   }
-  
 }
