@@ -102,3 +102,8 @@ dist
 
 # TernJS port file
 .tern-port
+.idea/codeStyles/codeStyleConfig.xml
+.idea/codeStyles/Project.xml
+.idea/shelf/Add_warframe_items_to_dependencies.xml
+.idea/shelf/Add_warframe_items_to_dependencies/shelved.patch
+.idea/workspace.xml
