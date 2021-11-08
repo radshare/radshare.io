@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import {RelicService} from '../../relic.service';
+import {RelicService} from '../../services/relic.service';
 import {IRoom} from '../../../../../api/src/schema';
 
 @Component({

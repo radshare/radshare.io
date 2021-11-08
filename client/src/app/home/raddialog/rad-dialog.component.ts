@@ -4,7 +4,7 @@ import {ReplaySubject, Subject} from 'rxjs';
 import {MatSelect} from '@angular/material/select';
 import {takeUntil} from 'rxjs/operators';
 import {RadRoom} from '../home.component';
-import {RelicService} from '../../relic.service';
+import {RelicService} from '../../services/relic.service';
 import {MatDialogRef} from '@angular/material/dialog';
 var relics = require('src/assets/Relics.json');
 //import * as $ from "jquery";

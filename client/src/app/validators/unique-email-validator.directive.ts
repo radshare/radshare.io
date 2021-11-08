@@ -1,7 +1,7 @@
 import { Directive } from '@angular/core';
 import {AbstractControl, AsyncValidator, NG_ASYNC_VALIDATORS, ValidationErrors} from '@angular/forms';
 import {Observable, of} from 'rxjs';
-import {UserService} from '../user.service';
+import {UserService} from '../services/user.service';
 import {map} from 'rxjs/operators';
 
 @Directive({
