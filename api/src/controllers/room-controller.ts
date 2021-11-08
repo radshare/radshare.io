@@ -54,12 +54,40 @@ export class RoomController {
 	public async putUser(req: any, res: Response): Promise<void> {
 		try{
 		    let userDetails = {email: req.payload.email, username: req.payload.username};
-        	this.room.updateOne({id: req.body.id},
+        	let rrr = await this.room.findByIdAndUpdate(req.body.id,
 				{$push: {tenno: userDetails}});
+        	console.log(rrr);
         	res.status(200);
+        	res.json("ok");
 		}
 		catch(e){
-			console.error('Room ID not in database');
+			console.error(e);
+			res.status(500);
+			res.json(e);
+		}
+	}
+
+	public async deleteUser(req: any, res: Response): Promise<void> {
+		try{
+			let userDetails = {email: req.payload.email, username: req.payload.username};
+			this.room.findByIdAndUpdate(
+				req.body.id,
+				{$pull: {tenno: userDetails}},
+				{useFindAndModify: false, new: true}
+			).then( (updatedRoom: IRoom|null) => {
+				console.log(updatedRoom);
+				if (updatedRoom?.tenno.length === 0){
+					this.room.findByIdAndDelete(updatedRoom._id)
+						.then( () => res.json("Room deleted"));
+				}
+				else{
+					res.json("ok");
+				}
+			});
+			res.status(200);
+		}
+		catch(e){
+			console.error(e);
 			res.status(500);
 			res.json(e);
 		}

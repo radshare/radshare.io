@@ -83,6 +83,14 @@ class Api {
 							res.status(401).json({message : 'Invalid token'});
 						}
 					});
+		router.put('/room/0', this.decodeToken(),
+			(req, res) => {
+				if (this.authController.checkTokenCredentials(req)) {
+					this.roomController.deleteUser(req, res);
+				} else {
+					res.status(401).json({message : 'Invalid token'});
+				}
+			});
 		router.get('/room/*', this.decodeToken(),
 					(req, res) => {
 						if (this.authController.checkTokenCredentials(req)) {

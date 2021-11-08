@@ -15,10 +15,12 @@ export class RadgroupComponent implements OnInit {
 
   ngOnInit(): void {
     this.relicsService.loadRoomDetails().subscribe(data => {
-      console.log(data.result);
       this.roomData = data.result;
       this.usersArray = data.result.tenno;
     });
   }
-
+  ngOnDestroy(): void {
+    console.log('Deleting');
+    this.relicsService.leaveRoom(this.roomData._id).toPromise().then(() => console.log('elp'));
+  }
 }
