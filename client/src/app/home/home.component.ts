@@ -7,7 +7,7 @@ import {RadDialogComponent} from './raddialog/rad-dialog.component';
 import {catchError, map, startWith, switchMap} from 'rxjs/operators';
 import {merge, of} from 'rxjs';
 import {MatTableDataSource} from '@angular/material/table';
-import {AuthenticationService} from '../authentication.service';
+import {AuthenticationService} from '../services/authentication.service';
 import {Router} from '@angular/router';
 import {RoomDialogComponent} from './roomdialog/room-dialog.component';
 
@@ -41,28 +41,35 @@ export class HomeComponent implements AfterViewInit{
     this.loadRadshares();
   }
 
+  // Load radshare rooms into the table on page load
   loadRadshares():void {
-    // Load radshare rooms into the table on page load
-    merge()
+    merge() //empty observable
+      // Run functions in sequence using pipe
       .pipe(
+        // Create observable that emits empty values then source values
+        // So that the data actually ends up getting emitted
         startWith({}),
+        // Switches values to the result observable (aka the http request observable)
+        // instead of the empty source one
         switchMap(() => {
           this.isLoadingResults = true;
           return this.relics.getRadshares();
         }),
+        // Parse the observable data
         map(data => {
           // Flip flag to show that loading has finished.
           this.isLoadingResults = false;
           this.resultsLength = data.total_count;
           // Turn the expiration date from milliseconds to a displayable format
           data.data.forEach( (room) => {
-            var totalMins = Math.round((room.expirationDate - Date.now()) / 1000 / 60);
-            var mins = totalMins % 60;
-            var hrs = Math.floor(totalMins / 60);
+            let totalMins = Math.round((room.expirationDate - Date.now()) / 1000 / 60);
+            let mins = totalMins % 60;
+            let hrs = Math.floor(totalMins / 60);
             room.expirationDate = hrs + ':' + mins.toString().padStart(2, '0');
           });
           return data.data;
         }),
+        // Deal with any errors that happened when getting data
         catchError((err) => {
           console.error(err);
           this.isLoadingResults = false;
@@ -80,13 +87,17 @@ export class HomeComponent implements AfterViewInit{
     this.router.navigateByUrl("/login");
   }
 
-  gotoRoom(returnedRoom: string){
-    // Register the user to the room
-    this.relics.joinRoom(returnedRoom).subscribe(() => {
-    });
+  gotoRoom(returnedRoomID: string){
     // Set the user's registered room in the relic service and navigate to the page
-    this.relics.setRegisteredRoomID(returnedRoom);
+    this.relics.setRegisteredRoomID(returnedRoomID);
     this.router.navigateByUrl("/room", { skipLocationChange: true })
+  }
+
+  joinRoom(returnedRoomID: string){
+    // Register the user to the room
+    this.relics.joinRoom(returnedRoomID).subscribe(() => {
+    });
+    this.gotoRoom(returnedRoomID);
   }
 
   openNewRadDialog() {
@@ -124,7 +135,7 @@ export class HomeComponent implements AfterViewInit{
         .afterClosed().subscribe((confirmedRoom) => {
           if (confirmedRoom){
             // User wants to join the room
-            this.gotoRoom(confirmedRoom.room._id);
+            this.joinRoom(confirmedRoom.room._id);
           }
       });
     }
