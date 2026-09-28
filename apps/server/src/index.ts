@@ -106,9 +106,18 @@ export function start(env = process.env) {
   return {
     server,
     hub,
+    /**
+     * Force-closes live sockets rather than waiting for them to drain.
+     *
+     * A WebSocket held open by someone watching the board will never drain on
+     * its own, so a graceful stop would hang the deploy. Closing them is also
+     * the kinder behaviour: queue entries die with the socket anyway, and a
+     * client that sees a close reconnects in 500ms, where one left hanging on
+     * a dead process sits there showing counts that stopped being true.
+     */
     stop() {
       clearInterval(sweep);
-      server.stop();
+      server.stop(true);
       db.close();
     },
   };

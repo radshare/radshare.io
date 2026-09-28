@@ -204,9 +204,19 @@ describe("tabular figures", () => {
 });
 
 describe("never seed fake presence", () => {
-  test("the board route ships no sample rows", () => {
-    const page = read(join(SRC, "routes", "+page.svelte"));
-    expect(page).toContain("rows={[]}");
+  test("the board route invents no rows of its own", () => {
+    // Every row on screen comes from the socket or from the server-rendered
+    // cached board. There is no literal fallback row anywhere, so an empty
+    // queue renders an empty board rather than a convincing one.
+    const page = code(join(SRC, "routes", "+page.svelte"));
+    expect(page).not.toMatch(/bucketKey:\s*["'`]/);
+    expect(page).not.toMatch(/count:\s*[1-9]/);
+  });
+
+  test("a board that cannot be fetched renders empty rather than invented", () => {
+    const load = code(join(SRC, "routes", "+page.server.ts"));
+    expect(load).toContain("rows: []");
+    expect(load).not.toMatch(/bucketKey:\s*["'`]/);
   });
 
   test("the empty state says the board is empty rather than faking it", () => {

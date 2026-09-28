@@ -3,8 +3,13 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ESNext", "DOM"],
-    "types": ["bun"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
+    "types": [
+      "bun"
+    ],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -14,9 +19,23 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@radshare/protocol": ["./packages/protocol/src/index.ts"],
-      "@radshare/protocol/*": ["./packages/protocol/src/*"]
+      "@radshare/protocol": [
+        "./packages/protocol/src/index.ts"
+      ],
+      "@radshare/protocol/*": [
+        "./packages/protocol/src/*"
+      ]
     }
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts"]
+  "include": [
+    "apps/server/**/*.ts",
+    "packages/**/*.ts",
+    "apps/web/src/lib/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "apps/web/.svelte-kit",
+    "apps/web/build",
+    "apps/web/src/**/*.svelte.ts"
+  ]
 }

@@ -1205,7 +1205,7 @@ that runs the game before anything else gets built.
   - Files: `apps/server/src/matcher.ts`, `packages/protocol/src/match.ts`
   - Verify: return value is not a Promise; `planRestore` puts evicted members back with their original `enqueuedAt`; no `Date.now()` or socket reference reachable from the module
   - `undo()` became `planRestore(buckets, placements)` during implementation; rationale under Recommended Approach.
-- [~] **T1 (SERVER DONE, UI outstanding)** — lobby — Implement the host role and the asymmetric lobby
+- [x] **T1 (DONE)** — lobby — Implement the host role and the asymmetric lobby
   - Surfaced by: Pass 1 — every member got identical copy buttons, producing twelve whispers and colliding invites
   - Files: `apps/server/src/lobby.ts` (DONE), `apps/server/src/db.ts` (DONE), `packages/protocol/src/lobby.ts` (DONE), `apps/web/src/routes/lobby/[id]/+page.svelte` (outstanding)
   - **The asymmetry is structural, not a flag.** `whisper` is present on the host's view of the other three rows and absent — not null, not disabled — everywhere else. A non-host client cannot render a copy-whisper button because it was never sent the data to build one, so the twelve-whisper failure is prevented by the shape of the payload rather than by a conditional somebody could forget.
@@ -1213,7 +1213,7 @@ that runs the game before anything else gets built.
   - A member with no self-declared IGN yields `whisper: null` rather than a string containing a placeholder. The host's UI must say so; copying a broken whisper is worse than copying nothing.
   - Durable state landed with it: `accounts`, `lobbies`, `lobby_members`, `events`, on `bun:sqlite`. **Capacity is a partial unique index on `(lobby_id, slot)`**, not a read-then-insert, so the five-person squad is impossible rather than unlikely. `chat_messages` is deliberately absent until chat is built.
   - Verify: host is the oldest `enqueuedAt`; non-hosts see the waiting banner and no name-action affordance
-- [~] **T2 (SERVER DONE, UI outstanding)** — board — Implement the two board modes
+- [x] **T2 (DONE)** — board — Implement the two board modes
   - Surfaced by: Pass 7 — board mode follows queue state: global while unqueued, personal while queued
   - Files: `apps/server/src/board.ts` (DONE), `apps/web/src/routes/+page.svelte` (outstanding)
   - **The mode is read from the buckets, never from a client claim.** `BoardStream.snapshot` sets its own mode from whether the account holds any entry, so a reconnect while queued lands in personal mode without the client having to remember it was queued — which is the same reason `you` is on every snapshot rather than only the global one.
@@ -1228,6 +1228,14 @@ that runs the game before anything else gets built.
   - **Two failures the end-to-end run surfaced, both now guarded.** Queueing without an account row is refused at the JOIN with `IGN_REQUIRED`, because discovering it at match time fails a match three other people already confirmed. And a failed lobby write restores all four to their buckets and sends `MATCH_FAILED` — the gate is already closed by then, so without it four people are out of every bucket they held with nothing to show for it.
   - `POST /api/account` is the only path that writes an in-game name, and `GET /api/me` reports `hasAccount` so the client knows to show the first-run screen. A Clerk session by itself creates nothing.
   - Verify: `GET /api/board` is public, cached and carries `updatedAgo`; `/ws` refuses an unauthenticated upgrade and enforces the per-IP cap at the handshake; production refuses to boot without `CLERK_SECRET_KEY`, and the dev bypass cannot be switched on when `NODE_ENV=production`
+- [x] **T21 (DONE)** — client — Wire the client to the socket
+  - Surfaced by: implementation — the server was complete and the client had tokens and components but no connection
+  - Files: `apps/web/src/lib/boardState.ts`, `apps/web/src/lib/connection.ts`, `apps/web/src/lib/socket.svelte.ts`, `apps/web/src/lib/components/{ConnectionBar,ReadyCheck,Lobby}.svelte`, `apps/web/src/routes/+page.{svelte,server.ts}`
+  - Split the same way the server is: `connection.ts` takes its transport, clock and timers as parameters and holds every decision, so backoff, replay and the disowning of stale counts are tested by calling functions. `socket.svelte.ts` is the runes wrapper and contains no logic.
+  - **The selection is replayed on reconnect.** Queue entries die with the socket and there is no grace window, so this is the mechanism that makes a blip cost a position rather than the whole queue — and it is what made the grace window removable in the first place.
+  - **A delta whose mode disagrees with the current board is dropped, not merged.** The server sends a snapshot on a flip so it should not arrive, but merging personal rows into a global board would corrupt the count a stranger is reading.
+  - First paint comes from the same cached `GET /api/board` an anonymous poller would hit, so the server-rendered board and the polled board cannot disagree. A board that cannot be fetched renders empty; there is no literal fallback row anywhere, and a test asserts it.
+  - Verify: a real client driven against a real `Bun.serve` completes sign-up, queue, mode swap, ready gate, asymmetric lobby and disconnect detection — 23 assertions, all passing
 - [ ] **T3 (P1, human: ~2d / CC: ~3h)** — states — Build every cell of the interaction state table
   - Surfaced by: Pass 2 — the exclusion screen and the disconnected board were named but never designed
   - Files: `apps/web/src/lib/states/*`, `apps/web/src/routes/**`
@@ -1244,7 +1252,7 @@ that runs the game before anything else gets built.
   - Surfaced by: Eng review Issue 9 — a match evicting four people emits dozens of broadcasts per client
   - Files: `apps/server/src/broadcast.ts`
   - Verify: a bucket that changes 2 → 3 → 2 within one tick emits no delta at all
-- [ ] **T4 (P1, human: ~4h / CC: ~30m)** — board — Reconnecting and disconnected must disown stale counts
+- [x] **T4 (DONE)** — board — Reconnecting and disconnected must disown stale counts
   - Surfaced by: Pass 2 — an undimmed board during a dropped socket lies about the product's core claim
   - Files: `apps/web/src/lib/socket.ts`, `apps/web/src/lib/components/Board.svelte`
   - Verify: kill the socket; board dims to 60% and the bar appears within one heartbeat interval
@@ -1284,7 +1292,7 @@ that runs the game before anything else gets built.
   - Surfaced by: Pass 7 — WFCD image coverage per relic is unverified
   - Files: `apps/web/src/lib/components/RelicHeader.svelte`
   - Verify: every relic renders art; one with no WFCD image falls back to the generic relic graphic, never a grey box
-- [~] **T12 (SERVER DONE, UI outstanding)** — match — Ready gate between queue pop and lobby
+- [x] **T12 (DONE)** — match — Ready gate between queue pop and lobby
   - Surfaced by: user direction — the lobby should only exist once all four confirm, so a no-show never costs the other three a lobby
   - Files: `apps/server/src/readygate.ts` (DONE), `packages/protocol/src/ready.ts` (DONE), `apps/web/src/lib/components/ReadyCheck.svelte` (outstanding)
   - Three things the spec did not settle, decided during implementation: a member whose **last socket closes mid-gate fails the gate at once** rather than burning the remaining countdown, since they cannot confirm and the other three are only waiting to be told; a member who **confirmed and then vanished counts as absent**, because a lobby they are not connected to is the dead room the gate exists to prevent; and the wire carries an **absolute `deadlineAt`** rather than a duration, so a slow delivery shortens the client's countdown instead of extending the gate.
