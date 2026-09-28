@@ -563,11 +563,19 @@ within a minute, holding the position they already had.
 no room scarcity the cost is only whoever joined that bucket in the meantime — usually nobody.
 This is for honesty rather than competitive advantage.
 
-**Non-confirmers are removed from the queue entirely**, not just from the bucket that popped.
-Someone who is not at their keyboard is not queueing for anything else either.
+**Non-confirmers are removed from the queue entirely** — every bucket, not just the one that
+popped. Someone who missed a 60-second countdown carrying a gong, a title flip and a browser
+notification is not at their machine, and leaving them queued means the next three people hit the
+same dead end.
 
-Open: whether a non-confirmer's other buckets should also be cleared immediately, or whether the
-removal should be scoped to the popped bucket. The doc takes the stricter reading.
+This is a deliberate choice about whose time the design protects. The cost lands on the absent
+user as **one click**, because the screen states plainly what happened and the composer retains
+their selection. The cost of the lenient alternative lands on strangers who did nothing wrong,
+repeatedly.
+
+The failure screen must say so in as many words — something like "You didn't confirm in time, so
+you've been removed from the queue" with the selection still loaded and a single button to
+re-queue. Silently emptying someone's queue would be the worst version of this.
 
 ### Match transition
 
@@ -720,7 +728,7 @@ cell becomes a spinner and an alert box.
 | **Member names** | — | — | — | Large, mono, selectable at every width. Warframe IGNs are plain; no `#1234` discriminator. | — |
 | **Join by share code** | Button shows pending while the code resolves. | — | `CODE_NOT_FOUND`: "No squad with that code." `LOBBY_FULL`: "This squad is already full" (translated from the database constraint, never raw). `LOBBY_CLOSED`: "This lobby has closed." Each inline at the input, never a modal. | Routes straight into the lobby as a full member. | — |
 | **Chat** | Skeleton bubbles on rejoin while history loads. | "No messages yet." Nothing more; chat is secondary and an illustration here would be noise. | Send failed: the message stays in the composer with a retry affordance, never vanishes. | Message appends. | History partially loaded: "Load earlier messages" at the top. |
-| **Ready gate** | Popup appears on queue pop with the relic, the four members and a 60s countdown. | — | Gate failed: whoever did not confirm is removed from the queue and told so plainly; everyone who did confirm returns to the board already re-queued, with a one-line explanation. Never silent. | All four confirmed: the popup gives way to the lobby. | Some confirmed, countdown still running: confirmed members show as ticked, the rest as pending. |
+| **Ready gate** | Popup appears on queue pop with the relic, the four members and a 60s countdown. | — | Gate failed. Non-confirmer: removed from **every** bucket, shown "You didn't confirm in time, so you've been removed from the queue", selection retained, one button to re-queue. Confirmers: returned to their buckets with their original position and a one-line explanation. Never silent for either. | All four confirmed: the popup gives way to the lobby. | Some confirmed, countdown still running: confirmed members show as ticked, the rest as pending. |
 | **Good squad** | — | — | Press failed to send: the button re-enables and stays un-pressed. | Button locks in a confirmed state and the lobby closes for that member. | Some members pressed, others did not: no visible difference, because votes are never attributed. |
 | **Auth** | Redirecting to Clerk's hosted sign-in. | — | Returned from Clerk without a valid session, or session verification failed: back to the board signed out, with a plain explanation and a retry. Never a blank page and never a raw provider error. | Signed in, landed on the board with whatever you had queued. | — |
 
@@ -913,9 +921,12 @@ Reversible decisions, made so the first implementation steps are not blocked.
    and no moderation. A known gap, not an oversight.
 3. **Name collision with radshare.xyz.** Same word, different TLD, overlapping product. It will
    cost search traffic and cause confusion. A deliberate decision, not a discovery.
-4. **Identity abuse floor.** Email accounts are cheap and a determined actor rotates addresses.
-   Distinct-counterparty scoring closes the repeat-pairing farm but not the fresh-account one.
-   Acceptable for now — warframe.market has run on comparable soft identity for years.
+4. **Identity abuse floor.** Clerk raises the cost of a throwaway account above a bare email
+   form, but a determined actor still rotates them. With reputation removed there is no score to
+   farm, so the remaining abuse is nuisance rather than reputational: repeatedly joining queues
+   and failing the ready gate, which wastes other people's 60 seconds. The gate limits the blast
+   radius by design — nobody reaches a lobby — and nothing currently escalates against a repeat
+   offender. Acceptable for now; revisit if it actually happens.
 5. **Privacy policy and terms.** Required before collecting emails. Not drafted.
 6. **Can a rare-relic bucket reach four inside a live socket's lifetime?** The one premise 2
    rests on. If four holders of a given vaulted relic do not appear within a session-length
@@ -1012,9 +1023,10 @@ whatever is really there before JavaScript runs, and the link preview is not bla
    tiebreak determinism, bucket creation and deletion, and the zero-`await` invariant.
 2. **Auth.** Clerk hosted sign-in verified with `@clerk/hono`, self-declared IGN. Ahead of
    matching because buckets and lobby membership are account-keyed. Steam deferred.
-3. **The public board.** Live bucket counts over the WebSocket. Fixtures exist for development
-   behind a `?dev=1` flag only — the **public** board is real or it is empty. This is the
-   landing page.
+3. **The global board, both transports.** Anonymous: cached `GET /api/board` on a 10s cache,
+   polled every 10s, and server-rendered into first paint. Signed in: the same board live over
+   the socket. Fixtures exist for development behind a `?dev=1` flag only — the **public** board
+   is real or it is empty. This is the landing page.
 4. **Queue composer.** Relic multi-select with type-ahead chips, refinement multi-select
    defaulting to Radiant, a live "n/20 buckets" indicator, one primary QUEUE button. Vault state
    and rarity carried through from the vendored WFCD data so the composer can surface them when
@@ -1086,11 +1098,17 @@ reference only.
 
 Synthesized from this review's findings. Each derives from a specific finding above.
 
-**Build order: thin slice first, and the slice is desktop-only.** `T-spike` runs before the
-presence layer. Then T0-T4, T3b-T3d, T6-T7, T9,
-T12 and T15 plus auth and the composer form the slice. Deferred: T5, T8, T10, T11, T13, T14,
-T16, everything chat-related, and **all phone support** — responsive breakpoints,
-the wake lock, and the iOS foreground warning travel together and land as one piece of work.
+**Build order: thin slice first, and the slice is desktop-only.**
+
+**`T-spike` runs first**, before any presence code — it can invalidate the design of T4 and T3c.
+
+**In the slice:** `T-spike`, T0, T1, T2, T3, T3b, T3c, T3d, T4, T6, T7, T9, T10, T12, T15, T17,
+plus Clerk auth and the queue composer.
+
+**Deferred:** T5 (match transition polish), T8 (all phone support), T11 (relic art), T13 (group
+formation by share code), T14 (mastery rank), T16 (first-visit strip), T18 (lobby slot vacancy —
+it only matters once share codes exist), and everything chat-related.
+
 Nothing is cut; the order is chosen so the matcher and the board meet real users on the platform
 that runs the game before anything else gets built.
 
@@ -1161,7 +1179,7 @@ that runs the game before anything else gets built.
 - [ ] **T12 (P1, human: ~1d / CC: ~1h)** — match — Ready gate between queue pop and lobby
   - Surfaced by: user direction — the lobby should only exist once all four confirm, so a no-show never costs the other three a lobby
   - Files: `apps/server/src/readygate.ts`, `apps/server/src/matcher.ts`, `apps/web/src/lib/components/ReadyCheck.svelte`, `packages/protocol/src/ready.ts`
-  - Verify: all four confirm within 60s and a lobby is created with a designated host; if any do not, the non-confirmers are removed from the queue, the confirmers are returned to their buckets with their original `enqueuedAt`, and a `ready_gate_failed` event is recorded; a confirmer is never silently dropped
+  - Verify: all four confirm within 60s and a lobby is created with a designated host; if any do not, the non-confirmers are removed from **every** bucket they held and shown an explicit screen with their selection retained and a one-click re-queue, the confirmers are returned to their buckets with their original `enqueuedAt`, and a `ready_gate_failed` event is recorded; neither a confirmer nor a non-confirmer is ever silently dropped
 - [ ] **T13 (P2, DEFERRED, human: ~2d / CC: ~2h)** — queue — Group formation by share code
   - Surfaced by: Issue 8 follow-up — group formation so friends queue as a unit and the matcher fills the remaining seats. Requires `planMatch` to keep a group of two or three together in one match or not match them at all.
   - Files: `apps/server/src/matcher.ts`, `apps/server/src/groups.ts`, `apps/web/src/routes/join/+page.svelte`
