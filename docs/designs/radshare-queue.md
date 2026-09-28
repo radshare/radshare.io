@@ -1252,9 +1252,11 @@ that runs the game before anything else gets built.
   - Surfaced by: Pass 7 — WFCD image coverage per relic is unverified
   - Files: `apps/web/src/lib/components/RelicHeader.svelte`
   - Verify: every relic renders art; one with no WFCD image falls back to the generic relic graphic, never a grey box
-- [ ] **T12 (P1, human: ~1d / CC: ~1h)** — match — Ready gate between queue pop and lobby
+- [~] **T12 (SERVER DONE, UI outstanding)** — match — Ready gate between queue pop and lobby
   - Surfaced by: user direction — the lobby should only exist once all four confirm, so a no-show never costs the other three a lobby
-  - Files: `apps/server/src/readygate.ts`, `apps/server/src/matcher.ts`, `apps/web/src/lib/components/ReadyCheck.svelte`, `packages/protocol/src/ready.ts`
+  - Files: `apps/server/src/readygate.ts` (DONE), `packages/protocol/src/ready.ts` (DONE), `apps/web/src/lib/components/ReadyCheck.svelte` (outstanding)
+  - Three things the spec did not settle, decided during implementation: a member whose **last socket closes mid-gate fails the gate at once** rather than burning the remaining countdown, since they cannot confirm and the other three are only waiting to be told; a member who **confirmed and then vanished counts as absent**, because a lobby they are not connected to is the dead room the gate exists to prevent; and the wire carries an **absolute `deadlineAt`** rather than a duration, so a slow delivery shortens the client's countdown instead of extending the gate.
+  - The confirmer-side copy lives in `READY_FAILED_COPY`, not in `ErrorCode`. Being returned to your buckets is an outcome, not an error, and putting it in the error union would have been the first entry there that is not a failure.
   - Verify: all four confirm within 60s and a lobby is created with a designated host; if any do not, the non-confirmers are removed from **every** bucket they held and shown an explicit screen with their selection retained and a one-click re-queue, the confirmers are returned to their buckets with their original `enqueuedAt`, and a `ready_gate_failed` event is recorded; neither a confirmer nor a non-confirmer is ever silently dropped
 - [ ] **T13 (P2, DEFERRED, human: ~2d / CC: ~2h)** — queue — Group formation by share code
   - Surfaced by: Issue 8 follow-up — group formation so friends queue as a unit and the matcher fills the remaining seats. Requires `planMatch` to keep a group of two or three together in one match or not match them at all.
