@@ -230,24 +230,37 @@ silently break a rule that leaned on it. The pure-function boundary holds regard
 enforced **structurally, not by convention**:
 
 ```
-  planMatch(map, request) -> MatchPlan          PURE. No I/O reachable.
-    |                                           Nothing to await because
-    |  evict from all buckets                   nothing external is in scope.
-    |  snapshot the four members
+  planMatch(buckets, request, now) -> PlanResult    PURE. No I/O reachable.
+    |                                               Nothing to await because
+    |  idempotent set join                          nothing external is in scope.
+    |  at most one bucket fires
+    |  evict the four from EVERY bucket
     |  compute deltas
-    |  build the undo
     v
-  MatchPlan { evicted[], lobby, deltas[], undo() }
+  Plan { deltas[], readyCheck | null, evicted[] }
     |
-    +--> caller performs ALL I/O, in this order:
-         1. await insert lobby row
+    +--> caller performs ALL I/O:
+         open the ready check, await confirmations, then insert the lobby
             |
-            +-- ok  --> broadcast deltas, send match.found
+            +-- all confirm, insert ok --> broadcast, send match.found
             |
-            +-- fail -> plan.undo(): restore all four to their original
-                        buckets with their ORIGINAL enqueuedAt, rebroadcast
-                        the restored counts, send error MATCH_FAILED
+            +-- gate failed or insert failed -->
+                  planRestore(buckets, evicted.filter(shouldComeBack))
+                  restores ORIGINAL enqueuedAt and rebroadcasts
+
+  planRestore(buckets, placements) -> Plan          also pure, also may fire
+  planLeave(buckets, accountId)    -> Plan
 ```
+
+**`planRestore` is a function, not an `undo()` closure on the plan, and that is
+a correction from implementation.** A closure captures the world as it was at
+fire time and would run up to a minute later, after other people have joined
+those buckets; restoring blindly against a changed map can push a bucket past
+four. Re-evaluating on restore means a restore that completes a bucket fires it,
+which is right — those are four real people waiting on the same relic. It also
+makes the lobby-insert retry fall out for free: put the same four back and they
+re-fire immediately, which is why the caller backs off after repeated
+`MATCH_FAILED` rather than looping.
 
 `planMatch(map, request, now)` returns a plain object. It touches nothing external, so there is
 nothing to await. A test asserts its return is not a `Promise`, which fails the moment someone
@@ -372,27 +385,39 @@ background-tab timer throttling (roughly one run per minute) and would evict exa
 minimized-tab users premises 2 and 3 exist to protect.
 
 **You do not configure a ping interval — you configure `idleTimeout`, and Bun pings at half of
-it.** Measured: an 8s `idleTimeout` produced pongs at 4s, 8s, 12s and 16s. So `idleTimeout: 45`
-gives pings at roughly 22s and eviction at 45s, which is the intended behaviour with none of the
-machinery an earlier draft specified. **There is no sweep and no `lastPongAt` bookkeeping to
-write**: Bun evicts on timeout and fires `close`, and eviction from buckets happens there.
+it.** Measured: an 8s `idleTimeout` produced pongs at 4s, 8s, 12s and 16s. **`idleTimeout: 30`**
+therefore pings roughly every 15s and gives up after 30s of silence. **There is no sweep and no
+`lastPongAt` bookkeeping to write**: Bun evicts on timeout and fires `close`, and eviction from
+buckets happens there.
 
-Two staleness bounds, not one, because they are different failures. A peer that **dies** sends
-FIN and `close` fires within about a millisecond — measured at 1ms for a killed process. A peer
-that **vanishes silently** (network partition, no FIN) is caught by `idleTimeout`, so the board
-can be stale for up to 45 seconds. The second bound is the one to quote publicly; the first is
-what actually happens almost every time.
+Two staleness bounds, because they are different failures. A peer that **dies** sends FIN and
+`close` fires within about a millisecond — measured at 1ms for a killed process, and unchanged
+through the proxy. A peer that **vanishes silently** (network partition, no FIN) is invisible
+until `idleTimeout`, so the board can be stale for up to 30 seconds. With the grace window
+removed, that is the whole worst case rather than the first half of it.
 
-**A clean close evicts at once; an abnormal close gets a 60-second hold.** Closing the tab sends
-a close frame and the entry goes immediately, exactly as premise 2 requires — the board never
-counts someone who deliberately left. A socket that just vanishes (Wi-Fi blip, laptop lid, a
-brief app switch) holds the account's entries for 60 seconds; reconnecting inside that window
-restores the **original `enqueuedAt`**, so a flaky connection stops silently costing someone the
-oldest-waiting tiebreak.
+**Any close evicts immediately. There is no grace window.** A deliberate tab close and a dead
+router are treated identically, because the board must not vouch for someone who is not
+connected — that is the whole of premise 2.
 
-The distinction is the close code, and it is **verified rather than assumed**: `ws.close()`
-reports 1000, `ws.close(1001)` reports 1001, and a killed peer reports 1006. Branch on
-`code === 1006` for the hold; everything else evicts immediately. Note this is per account, not per socket: with independent clients, the hold
+An earlier design held an account's entries for 60 seconds after an abnormal close, so a brief
+blip did not cost a queue position. **It was removed during implementation**, for three reasons
+that compound:
+
+- **The position it protected is worth almost nothing.** There is no room scarcity; any four
+  people in a bucket match. Losing `enqueuedAt` costs only whoever joined that bucket in the
+  meantime, which on a rare relic is usually nobody.
+- **The client already recovers a blip.** It caches the relic selection and re-queues on
+  reconnect — machinery that exists for deploys regardless. Grace was a second mechanism doing
+  the same job.
+- **It tripled the ghost window.** A *silent* death costs `idleTimeout` before the server even
+  notices; stacking 60 seconds of grace on top meant the board could count a departed player for
+  90+ seconds. Long enough for three real people to fill that bucket, fire a ready check
+  containing a ghost, and lose a minute when it cannot complete.
+
+Close codes are still distinguishable and verified — `ws.close()` reports 1000, `ws.close(1001)`
+reports 1001, a killed peer reports 1006, and all of it survives the reverse proxy. The design
+simply no longer needs to branch on them. Note this is per account, not per socket: with independent clients, the hold
 only starts when the account's last socket goes.
 
 **Wake lock is a mobile concern and is deferred with the rest of phone support** (see
@@ -968,7 +993,9 @@ Reversible decisions, made so the first implementation steps are not blocked.
 - A **returning, signed-in** user goes from landing page to three IGNs in under 30 seconds, given
   three others queued for the same relic, and all four confirm at the ready gate. First-time
   users pay a sign-in round trip; excluded deliberately.
-- The board never displays a bucket whose members disconnected more than 45 seconds ago.
+- The board never displays a bucket whose members disconnected more than 30 seconds ago, and
+  that figure is the complete worst case rather than one of two stacked delays. A clean close is
+  reflected within milliseconds; only a silent death costs the full window.
 - The board never displays `4/4`, and never displays `0/4`.
 - **A queued user always sees live counts for their own buckets**, regardless of board rank.
 - **Minimizing the tab for 10 minutes does not remove you from the queue** on desktop. A clean
@@ -1077,9 +1104,9 @@ whatever is really there before JavaScript runs, and the link preview is not bla
    defaulting to Radiant, a live "n/20 buckets" indicator, one primary QUEUE button. Vault state
    and rarity carried through from the vendored WFCD data so the composer can surface them when
    a user is choosing what to queue for.
-5. **Live queue state.** Connect/disconnect, protocol-level ping at 15s with 45s eviction and a
-   1s sweep, and the two `board.delta` streams (global while unqueued, own-buckets while queued,
-   switching on `queue.join` / `queue.leave`).
+5. **Live queue state.** Connect/disconnect with `idleTimeout: 30` (Bun pings ~15s; no sweep, no
+   `lastPongAt`), eviction on the account's last close, and the two `board.delta` streams (global
+   while unqueued, own-buckets while queued, switching on `queue.join` / `queue.leave`).
 6. **Matching and the lobby.** Fire at four per the contract; lobby with three IGNs, per-IGN
    copy-whisper, persisted chat, Good squad, Queue again, and the lifecycle rules.
 7. **The Good squad button.** One optional press per member, unattributed, closing the lobby for
@@ -1164,10 +1191,11 @@ that runs the game before anything else gets built.
   - **(1) DONE — Bun 1.4.2, local.** Idle connection survived 20s against an 8s `idleTimeout`; the open `idleTimeout`/`sendPings` issue did not reproduce. Pings fire at half the timeout. Close codes: 1000/1001 clean, 1006 abnormal. Killed peer fired `close` in 1ms. Bun pinned to 1.4.2.
   - **(2) DONE — Caddy 2.11.4.** WebSocket upgrade works with no special configuration. Pongs arrived on the same cadence as a direct connection, an idle socket survived 20s against an 8s `idleTimeout`, and an abruptly killed peer produced 1006 through the proxy. Presence behaves identically behind Caddy.
   - **(3) DONE — and worse than assumed, then better.** The app sees `::ffff:127.0.0.1`, and the peer port was identical across separate requests because Caddy pools its upstream connection — so the peer is a single connection shared between visitors, not just a loopback address. Keying a per-IP cap on it locks out the entire userbase. Separately: Caddy **replaces** `X-Forwarded-For` rather than appending, verified by forging a value and a chain; both were discarded. Reading the header directly is safe until someone adds `trusted_proxies`.
-- [ ] **T0 (P1, human: ~4h / CC: ~30m)** — matcher — Pure `planMatch(map, request, now)` with an undo
+- [x] **T0 (DONE)** — matcher — Pure `planMatch(buckets, request, now)` plus `planRestore` and `planLeave`
   - Surfaced by: Eng review Issues 1, 2, 8 — the zero-await rule was a comment, insert failure lost matches silently, and ordering tests need an injected clock
   - Files: `apps/server/src/matcher.ts`, `packages/protocol/src/match.ts`
-  - Verify: return value is not a Promise; `undo()` restores original `enqueuedAt`; no `Date.now()` or socket reference reachable from the module
+  - Verify: return value is not a Promise; `planRestore` puts evicted members back with their original `enqueuedAt`; no `Date.now()` or socket reference reachable from the module
+  - `undo()` became `planRestore(buckets, placements)` during implementation; rationale under Recommended Approach.
 - [ ] **T1 (P1, human: ~1d / CC: ~1h)** — lobby — Implement the host role and the asymmetric lobby
   - Surfaced by: Pass 1 — every member got identical copy buttons, producing twelve whispers and colliding invites
   - Files: `apps/server/src/lobby.ts`, `apps/web/src/routes/lobby/[id]/+page.svelte`, `packages/protocol/src/lobby.ts`
@@ -1180,11 +1208,11 @@ that runs the game before anything else gets built.
   - Surfaced by: Pass 2 — the exclusion screen and the disconnected board were named but never designed
   - Files: `apps/web/src/lib/states/*`, `apps/web/src/routes/**`
   - Verify: each of the nine surfaces renders its specified loading, empty, error, success and partial states
-- [ ] **T3b (P1, human: ~4h / CC: ~30m)** — protocol — `ErrorCode` enum with user-facing copy
+- [x] **T3b (DONE)** — protocol — `ErrorCode` union with user-facing copy
   - Surfaced by: Eng review Issue 6 — ten distinct failure paths, none of them named
   - Files: `packages/protocol/src/errors.ts`
   - Verify: server cannot emit an unlisted code; client switch is exhaustive or the build fails
-- [ ] **T3c (P1, human: ~4h / CC: ~30m)** — server — Per-IP socket cap and message token bucket
+- [x] **T3c (DONE)** — server — Per-IP socket cap and message token bucket
   - Surfaced by: Eng review Issue 5 — unauthenticated sockets, no limits, one pinned machine
   - Files: `apps/server/src/limits.ts`, `apps/server/src/ws.ts`
   - Verify: 6th concurrent socket from one IP is rejected at the upgrade handshake, not after; 21st message in 10s is dropped with an `error`
@@ -1240,6 +1268,14 @@ that runs the game before anything else gets built.
   - Surfaced by: design review, HOW IT WORKS had no destination and the board can read as a list rather than a queue
   - Files: `apps/web/src/lib/components/FirstVisitStrip.svelte`
   - Verify: four one-line steps show on first visit only; dismissal persists; no header link and no separate page exist
+- [x] **T17 (DONE)** — presence — Independent clients, eviction on the account's last close
+  - Surfaced by: eng review Issue 10 plus user direction — clients are independent and `session.superseded` was removed
+  - Files: `apps/server/src/presence.ts`, `apps/server/src/presence.test.ts`
+  - The 60s grace window was **dropped during implementation**: it protected a queue position worth little (no room scarcity), duplicated the client's existing auto-re-queue, and tripled the window in which a departed player could be pulled into a ready check. `idleTimeout: 30` is now the complete worst case rather than the first of two stacked delays.
+- [ ] **T18 (P2, DEFERRED — needs share codes)** — lobby — Queue again vacates the lobby slot; close prior membership on re-match
+  - Surfaced by: outside voice findings 6 and 7 — slots were only freed on explicit leave, and a re-matched member could hold two open lobbies
+  - Files: `apps/server/src/lobby.ts`
+  - Verify: a vacated slot is joinable by code; a re-match closes the prior membership so the account-derived reconnect query returns one row
 - [ ] **T14 (P3, human: ~2h / CC: ~20m)** — profile — Self-declared mastery rank
   - Surfaced by: Issue 8 follow-up — MR appeared in the approved mockup and DE exposes no player API
   - Files: `apps/web/src/routes/profile/+page.svelte`, `apps/server/src/accounts.ts`
@@ -1280,7 +1316,7 @@ structurally, not by comment) · compensating re-enqueue on lobby-insert failure
 6-character alphanumeric codes carrying no lobby information · per-IP socket cap at the upgrade
 handshake and a message token bucket · `ErrorCode` closed union with copy in `packages/protocol`
 · one consolidated `events` table · injected clock and a socket-free bucket layer · 100ms delta
-coalescing · independent clients with 60s grace on abnormal close · anonymous viewers moved off
+coalescing · independent clients, evicting on the account's last close · anonymous viewers moved off
 sockets onto a cached 10-second `GET /api/board`, server-rendered into first paint.
 
 Scope decision: **thin slice first, desktop-only.** Phone support (breakpoints, wake lock, iOS

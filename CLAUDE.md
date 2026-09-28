@@ -5,8 +5,8 @@ Presence-based relic squad queue for Warframe. Players pick one or more
 four. The design doc is `docs/designs/radshare-queue.md`.
 
 Stack: TypeScript end to end. Bun + Hono (serves the SvelteKit client and terminates the
-WebSocket on one origin), SvelteKit + Tailwind, **SQLite via the built-in `bun:sqlite`** on a
-Fly volume, backed up with litestream. Monorepo: `apps/server`, `apps/web`, `packages/protocol`.
+WebSocket on one origin), SvelteKit + Tailwind, **SQLite via the built-in `bun:sqlite`** on the
+VPS's local disk, backed up with litestream. Monorepo: `apps/server`, `apps/web`, `packages/protocol`.
 Relic data vendored from WFCD as build-time JSON.
 
 Deployment is a small VPS: Caddy in front for automatic TLS, systemd running the Bun process with
@@ -52,12 +52,17 @@ Two naming rules that are load-bearing:
 ## Presence (verified)
 
 Bun **1.4.2**, pinned. Do not configure a ping interval — set `idleTimeout` and Bun pings at half
-of it (measured: 8s timeout gave pongs at 4/8/12/16s). There is no sweep and no `lastPongAt`
-bookkeeping: Bun evicts on timeout and fires `close`, and bucket eviction happens there.
+of it (measured: 8s timeout gave pongs at 4/8/12/16s). **`idleTimeout: 30`.** There is no sweep
+and no `lastPongAt` bookkeeping: Bun evicts on timeout and fires `close`, and bucket eviction
+happens there.
 
-Close codes are the clean-vs-abnormal signal, verified: **1000/1001 clean, 1006 abnormal**.
-Branch on `code === 1006` for the 60s grace hold; everything else evicts immediately. A killed
-peer fires `close` in ~1ms; only a silent partition takes the full `idleTimeout`.
+**Any close evicts immediately — there is no grace window and no close-code branch.** An account
+is evicted when its LAST socket closes; several clients may share an account. A killed peer fires
+`close` in ~1ms, so only a silent death costs the full 30s, and that is the complete worst case
+for a stale board.
+
+Close codes are still verified and distinguishable (1000/1001 clean, 1006 abnormal, unchanged
+through Caddy) — the design just no longer needs them.
 
 ## Testing
 
@@ -66,10 +71,14 @@ Test runner: `bun test` (built in; Jest-compatible API). No Vitest, no Jest.
 Run: `bun test` · single file: `bun test path/to/file.test.ts`
 
 The matcher is the part that must be tested before any UI exists. It is testable because
-`planMatch(map, request, now)` is pure: time is injected, the bucket layer stores an opaque
-`connectionId` rather than a socket, and the function returns a plan object rather than
-performing I/O. Never reintroduce a direct `Date.now()` or a socket reference into that layer —
-it makes every ordering test timing-dependent.
+`planMatch(buckets, request, now)` is pure: time is injected and the function returns a plan
+object rather than performing I/O.
+
+Bucket entries are `{ accountId, enqueuedAt }` — **no connection reference at all**. Connections
+live in a separate registry (`Map<AccountId, Set<ConnectionId>>`) holding opaque ids rather than
+socket objects, because an account may hold several sockets and is evicted only when its last one
+closes. Never reintroduce a direct `Date.now()` or a socket reference into the matcher — it makes
+every ordering test timing-dependent.
 
 ## Skill routing
 
