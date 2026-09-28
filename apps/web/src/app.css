@@ -1,0 +1,175 @@
+@import "tailwindcss";
+@import "./lib/styles/tokens.css";
+
+/*
+ * Tailwind v4 reads its theme from CSS. Every utility resolves to a token, so
+ * `bg-surface` and `var(--surface)` cannot drift apart.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-pressed: var(--primary-pressed);
+  --color-primary-ink: var(--primary-ink);
+  --color-danger: var(--danger);
+  --color-ready: var(--ready);
+  --color-tier-axi: var(--tier-axi);
+  --color-tier-neo: var(--tier-neo);
+  --color-tier-meso: var(--tier-meso);
+  --color-tier-lith: var(--tier-lith);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-control: var(--radius-control);
+  --radius-panel: var(--radius-panel);
+
+  --shadow-overlay: var(--shadow-overlay);
+}
+
+/* ---------------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------------ */
+
+html {
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Tabular figures on EVERY numeric cell. Non-negotiable: a board whose counts
+ * jitter as digits change is a board that looks broken, so this is a
+ * correctness requirement rather than a refinement. Applied to the mono face
+ * wholesale, because in this UI mono means data means numbers.
+ */
+.font-mono,
+[class*="font-mono"],
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+ * Browser surfaces
+ *
+ * These ship with defaults that belong to no design system. On a screen that is
+ * mostly a scrolling table of numbers, theming them is the cheapest tell that
+ * the page was designed rather than assembled.
+ * ------------------------------------------------------------------------ */
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+:root {
+  caret-color: var(--primary);
+  accent-color: var(--primary);
+  scrollbar-color: var(--border) var(--bg);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-control);
+}
+
+/* Visible focus on everything interactive. Never `outline: none`. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--primary);
+  text-underline-offset: 3px;
+}
+
+/* Visited must differ from unvisited. */
+a:visited {
+  color: var(--link-visited);
+}
+
+/* ---------------------------------------------------------------------------
+ * Type roles
+ *
+ * Named after what they are FOR, not what they look like, so a size change is
+ * one edit here rather than a sweep through components.
+ * ------------------------------------------------------------------------ */
+
+.type-display {
+  font-family: var(--font-mono);
+  font-size: var(--text-display);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.type-heading {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+/* `LIVE QUEUE BOARD`, `QUEUE COMPOSER`. More space above than below. */
+.type-label {
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-block: var(--label-space-above) var(--label-space-below);
+}
+
+.type-data {
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.type-caption {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion
+ *
+ * One authored moment: the match transition. Everything else is 120ms or
+ * nothing. No entrance animations on sections. No pulsing status dots — a live
+ * board proves it is live by its numbers changing.
+ * ------------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

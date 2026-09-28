@@ -1244,14 +1244,22 @@ that runs the game before anything else gets built.
   - Surfaced by: Pass 3 — the emotional peak was specified as a sound and a title change
   - Files: `apps/web/src/lib/transitions/match.ts`, `apps/web/src/routes/lobby/[id]/+page.svelte`
   - Verify: transition runs when the origin row is visible; renders directly with no motion when backgrounded or under `prefers-reduced-motion`
-- [ ] **T6 (P1, human: ~4h / CC: ~30m)** — tokens — Land DESIGN.md as CSS custom properties
+- [x] **T6 (DONE)** — tokens — Land DESIGN.md as CSS custom properties
   - Surfaced by: Pass 5 — colours were named but never valued, typography was entirely unspecified
-  - Files: `apps/web/src/app.css`, `apps/web/src/lib/styles/tokens.css`
+  - Files: `apps/web/src/app.css`, `apps/web/src/lib/styles/tokens.css`, `apps/web/src/lib/styles/tokens.test.ts`
   - Verify: no hardcoded hex anywhere in components; IBM Plex Sans and Mono load; `tabular-nums` on every numeric cell
-- [ ] **T7 (P1, human: ~2h / CC: ~20m)** — tokens — Theme the browser surfaces
+  - **The verify criterion is a test, not a review note.** `tokens.test.ts` fails the build on a hex literal outside `tokens.css`, on a zero-offset `box-shadow`, on `outline: none`, on an `assertive` live region, and on any of the three rejected values returning. A design system does not collapse in one decision — it leaks one defensible `#1a1a1a` at a time until DESIGN.md describes a product that no longer exists, and a test is the only thing that reliably notices.
+  - Tailwind v4 takes its theme from the same custom properties via `@theme inline`, so `bg-surface` and `var(--surface)` cannot drift apart.
+- [x] **T7 (DONE)** — tokens — Theme the browser surfaces
   - Surfaced by: Pass 5 — selection, caret, scrollbar, focus ring and underline offset were all browser defaults
   - Files: `apps/web/src/app.css`
   - Verify: selection, caret, scrollbar and `:focus-visible` all render in palette; visited links differ from unvisited
+- [x] **T19 (DONE)** — scaffold — SvelteKit app, adapter-node, Tailwind v4, board primitives
+  - Surfaced by: implementation — three tasks had UI outstanding and no app existed to put it in
+  - Files: `apps/web/svelte.config.js`, `apps/web/vite.config.ts`, `apps/web/src/app.html`, `apps/web/src/routes/+layout.svelte`, `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/components/{Board,BucketRow,TierBadge,FillSegments}.svelte`
+  - **adapter-node, not adapter-static.** The board route is server-rendered so the cached payload is in first paint — the only way the board works as the marketing surface, and the reason Hono mounts the generated handler rather than serving a static directory.
+  - The board route ships the honest empty state and **no sample rows**. There is no data source wired yet, and a seeded placeholder would be the one thing the product must never do.
+  - Verify: `bun run build` succeeds; the built stylesheet contains the palette, `tabular-nums`, the themed scrollbar and `:focus-visible`; `bun run check` reports zero errors
 - [ ] **T8 (P2, DEFERRED — phone support, human: ~3d / CC: ~4h)** — responsive — Phone support as one piece
   - Surfaced by: Pass 6 (no viewport specified, both mockups 1280px) plus eng review Issue 10 (iOS suspends a backgrounded or locked page, so a phone client's socket dies on screen sleep regardless of protocol pings)
   - Files: `apps/web/src/lib/components/**`, `apps/web/src/lib/wakelock.ts`

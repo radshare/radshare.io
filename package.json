@@ -8,7 +8,10 @@
   ],
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun --filter '@radshare/web' check",
+    "dev": "bun --filter '@radshare/web' dev",
+    "build": "bun --filter '@radshare/web' build"
   },
   "devDependencies": {
     "@types/bun": "latest",

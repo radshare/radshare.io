@@ -1,0 +1,118 @@
+/*
+ * Design tokens. DESIGN.md at the repo root is the source of truth; this file
+ * is its only transcription. A value that disagrees with DESIGN.md is a bug in
+ * this file, not a local override.
+ *
+ * NOTHING ELSE IN THE APP MAY WRITE A HEX LITERAL. `tokens.test.ts` fails the
+ * build if a component does, because a design system leaks one stray `#1a1a1a`
+ * at a time and nobody notices until half the palette is unreachable.
+ */
+
+:root {
+  /* --- colour --------------------------------------------------------------
+   * Near-black is a USE-SCENE decision, not a category default: night, second
+   * monitor, beside a dark fullscreen game. Do not "modernize" this to light.
+   */
+  --bg: #0b1116; /* page */
+  --surface: #111a21; /* panels, table body */
+  --surface-raised: #17232c; /* your own row, hover, active */
+  --border: #223039; /* hairlines */
+  --border-strong: #33454f; /* section edges, focused inputs */
+
+  --text: #e8f0f4;
+  --text-secondary: #8fa6b2; /* tinted from the surface hue, never gray */
+  --text-tertiary: #5e7684; /* decoration only -- never put information here */
+
+  /* ONE accent. --primary is the only colour that marks an action. */
+  --primary: #e0a83c;
+  --primary-hover: #efbb55;
+  --primary-pressed: #c48f2a;
+  --primary-ink: #0b1116; /* text ON a filled primary button, never white */
+
+  /* States, never actions. Neither ever appears on a button. */
+  --danger: #e4634f;
+  --ready: #5fc98a; /* the READY badge only. Not a second accent. */
+
+  /* A visited link must differ from an unvisited one. Desaturated amber rather
+   * than the usual purple, which would read as a fifth tier colour. */
+  --link-visited: #c9b489;
+
+  /* Tier colours live in the tier badge and NOWHERE else: never a row, a
+   * border, a fill segment or a button. --tier-axi is pale sand rather than
+   * its canonical gold because gold and the amber primary are the same hue,
+   * and an Axi badge beside a filled button would read as a second button. */
+  --tier-axi: #ead9a0;
+  --tier-neo: #7fc9e8;
+  --tier-meso: #6e8be8;
+  --tier-lith: #b58be0;
+
+  /* --- typography ---------------------------------------------------------
+   * Plex Mono is not costume: in-game names are identifiers people copy
+   * character-for-character, relic codes are codes, and every counter and age
+   * is a figure that must align in a column.
+   */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --text-display: 56px; /* activity band numerals only */
+  --text-heading: 20px;
+  --text-label: 13px; /* section labels, uppercase, tracked */
+  --text-body: 16px; /* never below this */
+  --text-data: 15px;
+  --text-caption: 13px;
+
+  --weight-regular: 400;
+  --weight-semibold: 600;
+  --tracking-label: 0.08em;
+
+  /* --- spacing -------------------------------------------------------------
+   * 4px base. The row height doubles as the minimum touch target, so the board
+   * needs no separate mobile row metric.
+   */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --row-height: 44px;
+
+  /* More space above a heading than below it. This is the rule that most often
+   * survives in the spec and dies in the CSS, so it is a token. */
+  --label-space-above: var(--space-8);
+  --label-space-below: var(--space-3);
+
+  /* --- depth, radius, motion ----------------------------------------------
+   * NO GLOW. EVER. No box-shadow with a zero offset, no coloured halo, no neon
+   * bleed. This is the single rule that keeps the design from reading as
+   * machine-generated and the one most likely to come back during
+   * implementation. Offset plus blur is depth; zero-offset colour is
+   * decoration. The one shadow below is offset.
+   */
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45);
+
+  --radius-control: 2px; /* inputs, buttons */
+  --radius-panel: 4px; /* panels */
+
+  --duration-fast: 120ms; /* everything except the match transition */
+  --duration-match: 400ms; /* the one authored motion moment */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * Values that were REJECTED, kept here as a tripwire.
+ *
+ *   #00ffba  neon primary   -- chosen to glow; glow is cut, so the accent had
+ *                              to work as a flat fill. Now --primary.
+ *   #ffd700  gold highlight -- there is exactly one accent. Collided with the
+ *                              Axi tier badge; both were moved.
+ *   Arial    every type role -- a default stack as the display voice is the
+ *                              "gave up on typography" signal, and it has no
+ *                              tabular figures for a UI that is mostly a table
+ *                              of numbers.
+ *
+ * `tokens.test.ts` asserts none of these appear anywhere in src/.
+ */
