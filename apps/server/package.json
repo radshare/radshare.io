@@ -2,5 +2,10 @@
   "name": "@radshare/server",
   "private": true,
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "dependencies": {
+    "@clerk/backend": "^3.20.1",
+    "@clerk/hono": "^0.1.82",
+    "hono": "^4.13.10"
+  }
 }
