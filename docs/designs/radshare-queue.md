@@ -495,10 +495,11 @@ never dissolve.
   reputation does not exist in this product. Plus chat.
   **Mastery rank is self-declared in the profile**, exactly like the IGN, because DE exposes no
   player API. It is a courtesy signal, never a gate, and absent when unset.
-- **Ready-check: informs the host, never blocks them.** Each member gets a **READY** button on
-  arrival; the host watches the badges fill live and whispers whenever they choose. Gating the
-  host on all-four-ready would let one slow person block three others, which is the failure mode
-  this product exists to remove.
+- **There is no READY button in the lobby.** An earlier draft had one per member, with the host
+  watching badges fill live — "informs the host, never blocks them". The **ready gate replaced it
+  entirely**: readiness is now settled *before* the lobby exists, so a badge here would be a
+  second and weaker copy of a question already answered. The host whispers on arrival, with
+  nothing to wait for and nothing to watch.
 - **Everyone here already confirmed.** A lobby only exists once all four passed the ready gate,
   so no-shows are filtered out before this screen and there is no readiness state inside it.
 - **The intended happy path is that you leave.** You read the names, alt-tab into Warframe, and
@@ -562,7 +563,7 @@ it in recruiting chat.
 | 4 | Picks relics and queues | Committed, slightly exposed | Multi-select chips, `n/20` counter, Radiant preselected. |
 | 5 | **Waits. On a rare relic, for an unknown but longer time.** | **The danger zone. "Is anyone else even here?"** | The personal board shows their own bucket at `1/4` with a live count. "You're first in line for Axi G9" rather than a bare number. Invite-a-friend affordance. Tab can be minimized without eviction. |
 | 6 | Match fires while they are elsewhere | Surprise, then payoff | Audible ping, `document.title` flip. *Match transition* above: the row they watched becomes the lobby header. |
-| 7 | Reads the lobby, presses Ready | Needs to know their job in under a second | Role banner. Host sees "invite these three" with copy-whisper buttons; the rest see "<Host> will invite you. Keep Warframe open." Everyone has a READY button, which is what gives the three waiters something to do. |
+| 7 | Reads the lobby and learns their job | Needs to know their job in under a second | Role banner. Host sees "invite these three" with copy-whisper buttons; the rest see "<Host> will invite you. Keep Warframe open." No READY button — everyone here confirmed at the gate a moment ago, and the three waiters' job is to keep Warframe open, not to press a second button. |
 | 8 | Alt-tabs into Warframe and abandons the browser | Absorbed in the game — the browser stops existing | **This is the happy path and it is never punished.** Everyone in the lobby already confirmed at the gate; leaving the browser afterwards costs nothing and is recorded as nothing. |
 | 9 | Host goes AFK instead | Stranded | **Queue again** is always present for every member, not only after an explicit leave. |
 | 10 | Presses Good squad, or never comes back | No obligation | One optional button, no scoring of individuals, nothing owed. Three of four presses marks the group successful; fewer means nothing was recorded, not that anyone was blamed. |
@@ -1196,9 +1197,13 @@ that runs the game before anything else gets built.
   - Files: `apps/server/src/matcher.ts`, `packages/protocol/src/match.ts`
   - Verify: return value is not a Promise; `planRestore` puts evicted members back with their original `enqueuedAt`; no `Date.now()` or socket reference reachable from the module
   - `undo()` became `planRestore(buckets, placements)` during implementation; rationale under Recommended Approach.
-- [ ] **T1 (P1, human: ~1d / CC: ~1h)** — lobby — Implement the host role and the asymmetric lobby
+- [~] **T1 (SERVER DONE, UI outstanding)** — lobby — Implement the host role and the asymmetric lobby
   - Surfaced by: Pass 1 — every member got identical copy buttons, producing twelve whispers and colliding invites
-  - Files: `apps/server/src/lobby.ts`, `apps/web/src/routes/lobby/[id]/+page.svelte`, `packages/protocol/src/lobby.ts`
+  - Files: `apps/server/src/lobby.ts` (DONE), `apps/server/src/db.ts` (DONE), `packages/protocol/src/lobby.ts` (DONE), `apps/web/src/routes/lobby/[id]/+page.svelte` (outstanding)
+  - **The asymmetry is structural, not a flag.** `whisper` is present on the host's view of the other three rows and absent — not null, not disabled — everywhere else. A non-host client cannot render a copy-whisper button because it was never sent the data to build one, so the twelve-whisper failure is prevented by the shape of the payload rather than by a conditional somebody could forget.
+  - **The in-lobby READY button was cut.** It predated the ready gate and was a second, weaker copy of a question the gate now answers before the lobby exists. Both places that still described it are corrected above.
+  - A member with no self-declared IGN yields `whisper: null` rather than a string containing a placeholder. The host's UI must say so; copying a broken whisper is worse than copying nothing.
+  - Durable state landed with it: `accounts`, `lobbies`, `lobby_members`, `events`, on `bun:sqlite`. **Capacity is a partial unique index on `(lobby_id, slot)`**, not a read-then-insert, so the five-person squad is impossible rather than unlikely. `chat_messages` is deliberately absent until chat is built.
   - Verify: host is the oldest `enqueuedAt`; non-hosts see the waiting banner and no name-action affordance
 - [ ] **T2 (P1, human: ~1d / CC: ~1h)** — board — Implement the two board modes
   - Surfaced by: Pass 7 — board mode follows queue state: global while unqueued, personal while queued
