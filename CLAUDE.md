@@ -9,8 +9,18 @@ WebSocket on one origin), SvelteKit + Tailwind, **SQLite via the built-in `bun:s
 Fly volume, backed up with litestream. Monorepo: `apps/server`, `apps/web`, `packages/protocol`.
 Relic data vendored from WFCD as build-time JSON.
 
-Deployment is one pinned Fly machine (`auto_stop_machines` off, `min_machines_running = 1`). A
-rolling deploy across two machines splits the in-memory queue *and* forks the SQLite file.
+Deployment is a small VPS: Caddy in front for automatic TLS, systemd running the Bun process with
+`Restart=always`, SQLite on the local disk, litestream replicating to object storage. One box and
+one process by construction — there is no autoscaling to disable and no rolling deploy that could
+fork the database.
+
+Caddy is a reverse proxy, so the socket peer Bun sees is `::ffff:127.0.0.1` — and because Caddy
+pools its upstream connection, that peer is *shared between different visitors*. **Per-IP limits
+must read `X-Forwarded-For`**; keying on the peer counts the entire userbase as one person.
+
+Verified: Caddy 2.11.4 **replaces** `X-Forwarded-For` rather than appending, so forged values from
+a client are discarded and reading the header directly is safe. Adding `trusted_proxies` to the
+Caddyfile changes that — do not add it without re-testing.
 
 Auth: Clerk hosted sign-in, verified server-side with the official `@clerk/hono`. The community
 SvelteKit SDK is deliberately kept out of the auth path. Steam is deferred (OpenID 2.0, not
@@ -38,6 +48,16 @@ Two naming rules that are load-bearing:
 - The match pass (evict from all buckets, snapshot members, compute deltas) is one
   synchronous function with **zero `await`s**. The database insert and the broadcast
   happen after it returns. Violating this strands a bucket at 4/4.
+
+## Presence (verified)
+
+Bun **1.4.2**, pinned. Do not configure a ping interval — set `idleTimeout` and Bun pings at half
+of it (measured: 8s timeout gave pongs at 4/8/12/16s). There is no sweep and no `lastPongAt`
+bookkeeping: Bun evicts on timeout and fires `close`, and bucket eviction happens there.
+
+Close codes are the clean-vs-abnormal signal, verified: **1000/1001 clean, 1006 abnormal**.
+Branch on `code === 1006` for the 60s grace hold; everything else evicts immediately. A killed
+peer fires `close` in ~1ms; only a silent partition takes the full `idleTimeout`.
 
 ## Testing
 

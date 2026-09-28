@@ -354,11 +354,16 @@ global updates are what prompt them to join someone else's near-full bucket.
 For a queued user the socket is the queue entry. Clean disconnect removes the account from every
 bucket immediately.
 
-**Verify before building this section.** Three assumptions below are read, not tested: that Bun's
-automatic pings fire as documented (there is an open issue where `idleTimeout` and `sendPings`
-interact badly), that they survive Fly's proxy, and that `Fly-Client-IP` rather than the socket
-peer carries the real visitor address for the per-IP cap. A per-IP limit keyed on the proxy would
-count every visitor as one and lock out everyone at the sixth connection. See `T-spike`.
+**Verified locally on Bun 1.4.2 (`T-spike`, local half).** An idle connection that sent zero
+application messages survived 20s against an 8s `idleTimeout` — the open Bun issue about
+`idleTimeout` fighting `sendPings` did not reproduce. Close codes distinguish the two cases the
+grace rule needs: **1000/1001 clean, 1006 abnormal**. A peer process killed outright fired
+`close` in **1ms**.
+
+**Also verified through a real Caddy 2.11.4 reverse proxy.** WebSocket upgrade needs no special
+configuration. Pongs arrived on exactly the same cadence as a direct connection, an idle socket
+survived 20s against an 8s `idleTimeout`, and an abruptly killed peer still produced **1006**
+through the proxy. Nothing about the presence design changes behind Caddy.
 
 **Liveness uses WebSocket protocol-level ping frames, not an application message.** The browser
 answers ping frames in its network stack with no JavaScript involved, so a throttled or frozen
@@ -366,16 +371,28 @@ background tab stays connected. An application-level `pong` would be subject to 
 background-tab timer throttling (roughly one run per minute) and would evict exactly the
 minimized-tab users premises 2 and 3 exist to protect.
 
-Server pings every 15s; an entry is evicted after 45s without a pong frame; the eviction sweep
-runs every 1s over `lastPongAt`. Worst-case board staleness is therefore 45 seconds.
+**You do not configure a ping interval — you configure `idleTimeout`, and Bun pings at half of
+it.** Measured: an 8s `idleTimeout` produced pongs at 4s, 8s, 12s and 16s. So `idleTimeout: 45`
+gives pings at roughly 22s and eviction at 45s, which is the intended behaviour with none of the
+machinery an earlier draft specified. **There is no sweep and no `lastPongAt` bookkeeping to
+write**: Bun evicts on timeout and fires `close`, and eviction from buckets happens there.
+
+Two staleness bounds, not one, because they are different failures. A peer that **dies** sends
+FIN and `close` fires within about a millisecond — measured at 1ms for a killed process. A peer
+that **vanishes silently** (network partition, no FIN) is caught by `idleTimeout`, so the board
+can be stale for up to 45 seconds. The second bound is the one to quote publicly; the first is
+what actually happens almost every time.
 
 **A clean close evicts at once; an abnormal close gets a 60-second hold.** Closing the tab sends
 a close frame and the entry goes immediately, exactly as premise 2 requires — the board never
 counts someone who deliberately left. A socket that just vanishes (Wi-Fi blip, laptop lid, a
 brief app switch) holds the account's entries for 60 seconds; reconnecting inside that window
 restores the **original `enqueuedAt`**, so a flaky connection stops silently costing someone the
-oldest-waiting tiebreak. WebSocket close codes already distinguish the two cases, so this needs
-no new signalling. Note this is per account, not per socket: with independent clients, the hold
+oldest-waiting tiebreak.
+
+The distinction is the close code, and it is **verified rather than assumed**: `ws.close()`
+reports 1000, `ws.close(1001)` reports 1001, and a killed peer reports 1006. Branch on
+`code === 1006` for the hold; everything else evicts immediately. Note this is per account, not per socket: with independent clients, the hold
 only starts when the account's last socket goes.
 
 **Wake lock is a mobile concern and is deferred with the rest of phone support** (see
@@ -397,9 +414,19 @@ pinned machine.
 
 - **5 concurrent sockets per IP**, rejected at the **upgrade handshake** rather than after, so a
   connection flood never allocates socket state. Only authenticated accounts reach this path.
-  **The IP must come from `Fly-Client-IP`, never the socket peer** — behind Fly's proxy the peer
-  is Fly, so a cap keyed on it counts every visitor as the same person and locks everyone out at
-  the sixth connection. Verified by `T-spike` before this ships.
+  **The IP must come from `X-Forwarded-For`, never the socket peer.** Verified: behind Caddy the
+  app sees `::ffff:127.0.0.1`, and the peer port was *identical across separate requests* because
+  Caddy pools its upstream connection. So the peer is not merely always-loopback, it is a single
+  connection **shared between different visitors** — keying a per-IP cap on it would count the
+  entire userbase as one person and lock everyone out at the sixth connection.
+
+  **Caddy replaces `X-Forwarded-For` rather than appending to it**, verified by forging both a
+  single value and a chain: both were discarded and the real peer came through. So reading the
+  header directly is safe *by default*. It stops being safe the moment someone adds
+  `trusted_proxies` to the Caddyfile, which makes Caddy append and trust what the client sent.
+  Do not add it without re-testing this.
+
+  Normalise the address before use: the peer arrives IPv6-mapped (`::ffff:127.0.0.1`).
 - **Token bucket of ~20 messages per 10 seconds per socket.** Over-limit messages are dropped
   with an `error`, not silently.
 - **Share-code attempts rate-limited per IP**, separately and more tightly, since that is the
@@ -911,6 +938,7 @@ Reversible decisions, made so the first implementation steps are not blocked.
 | Refinement multi-select? | **Yes** | The liquidity argument for multi-select relics applies identically. Each pair is still its own bucket, and the 20-pair cap covers the blast radius. |
 | Overlapping bucket counts | **Show per-bucket, disclose in the UI** | Deduping needs a global user→bucket index and changes the delta payload. The board footer states that a player may appear in several buckets. |
 | Auth at v1 | **Clerk hosted sign-in** | Official `@clerk/hono` on the server, community SvelteKit SDK kept out of the auth path. Removes email deliverability from the slice; brings email, Discord and Microsoft/Xbox for free. Steam deferred — it is OpenID 2.0, hand-written, PC-only, and verifies nothing that matters here. |
+| Hosting | **Small VPS, not a managed platform** | The design disables autoscaling, scale-to-zero and multi-region, which is what a platform charges for. One always-on box with a local disk is what the architecture already committed to. Also: Fly has had no free tier since October 2024, so the pinned configuration would have cost $7-10/month. |
 | Chat retention | **Deleted 24h after lobby dissolution** | Bounds the retention and moderation surface while satisfying premise 6 and reconnect-with-history. |
 
 ## Open Questions
@@ -956,20 +984,38 @@ Reversible decisions, made so the first implementation steps are not blocked.
 
 ## Distribution Plan
 
-Web service at radshare.io on Fly.io. The in-memory queue assumes exactly one process, which is
-**not** the platform default: it requires a single pinned machine with `auto_stop_machines`
-disabled and `min_machines_running = 1`, stated explicitly in `fly.toml`. A rolling deploy across
-two machines silently splits the queue in half **and forks the SQLite file**, which is worse:
-a split queue self-heals on reconnect, a forked database does not. The same pinning protects both.
+Web service at radshare.io on a **small VPS** (Hetzner or similar, roughly €4–6/month), not a
+managed platform. Fly was the earlier choice and was reversed: this design disables everything a
+platform like Fly is good at. No autoscaling, no scale-to-zero, no multi-region, one pinned
+always-on machine with a local disk — which is a description of a VPS. Paying a platform to
+emulate one box is the same mistake as choosing Postgres for a single-writer workload. Fly also
+has no free tier for accounts created after October 2024; the realistic floor there was $7–10 a
+month for the pinned configuration this design requires.
 
-The volume also needs `litestream` replicating the database to object storage, and a restore that
-has been tested once rather than read about. That is the cost of choosing SQLite and it should be
-paid up front, not discovered.
+The single-process constraint stops being something you configure and start fighting for. There
+is no `auto_stop_machines` to disable and no rolling deploy that could fork the SQLite file,
+because there is exactly one box and one process by construction.
 
-**Deploys are manual-promote, not auto-on-merge.** A deploy evicts every queued user — invisible,
-and it hits everyone at once, which is nothing like closing a tab. Lobbies survive, because they
-hold no in-memory state beyond the socket registry, and the SQLite file lives on the volume
-rather than in the machine image. Mitigations:
+**The stack on the box:**
+
+- **Caddy** in front: automatic TLS via Let's Encrypt, reverse-proxying to the Bun process.
+  WebSocket upgrades pass through natively in Caddy v2 with no special configuration.
+- **systemd** unit for the Bun process with `Restart=always`, so a crash comes back without
+  anyone watching.
+- **SQLite** on the local disk, with **litestream** replicating to object storage. The restore
+  path must be tested once rather than read about — that is the cost of choosing SQLite and it
+  should be paid up front, not discovered.
+
+**Caddy is a reverse proxy, so the socket peer is `127.0.0.1`.** The per-IP connection cap must
+read `X-Forwarded-For`, never the peer address. Key it on the peer and every visitor counts as
+localhost, which means the sixth connection locks out the entire userbase. This is the same
+failure that `Fly-Client-IP` would have produced; changing host changed its name, not its
+existence. Unlike the Fly version it is standard, documented, and verifiable locally.
+
+**Deploys are manual-promote, not auto-on-merge** — build, ship the artifact, restart the unit.
+A deploy evicts every queued user: invisible, and it hits everyone at once, which is nothing like
+closing a tab. Lobbies survive, because they hold no in-memory state beyond the socket registry
+and the SQLite file is on disk rather than in the deployed artifact. Mitigations:
 
 - The client caches the user's **relic selections** in `localStorage` and auto-re-queues on
   reconnect with jittered backoff (0–5s) to avoid a thundering herd. This caches a *form
@@ -1112,10 +1158,12 @@ it only matters once share codes exist), and everything chat-related.
 Nothing is cut; the order is chosen so the matcher and the board meet real users on the platform
 that runs the game before anything else gets built.
 
-- [ ] **T-spike (P1, human: ~4h / CC: ~1h)** — platform — Verify three assumptions before the presence layer
-  - Surfaced by: eng review Issue 6 — the presence design rests on Bun ping behaviour, Fly proxy behaviour and client-IP resolution, none of them tested
-  - Files: throwaway spike, then `fly.toml` and the Bun version pin
-  - Verify: (1) Bun's automatic pings fire and pongs are observed — note the open issue where `idleTimeout` and `sendPings` interact badly; (2) pings and pongs survive Fly's proxy and a deliberately killed connection reaches the `close` handler; (3) `Fly-Client-IP` carries the real visitor address, because the socket peer behind the proxy is Fly and a per-IP cap keyed on it would count every visitor as one and lock out everyone at the sixth connection. Pin the Bun version once it passes.
+- [x] **T-spike (DONE, Bun 1.4.2 + Caddy 2.11.4, local)** — platform — Three assumptions verified before the presence layer
+  - Surfaced by: eng review Issue 6 — the presence design rested on Bun ping behaviour, proxy behaviour and client-IP resolution, none of them tested
+  - Files: throwaway spike (scratchpad), then the Caddyfile, the systemd unit and the Bun version pin
+  - **(1) DONE — Bun 1.4.2, local.** Idle connection survived 20s against an 8s `idleTimeout`; the open `idleTimeout`/`sendPings` issue did not reproduce. Pings fire at half the timeout. Close codes: 1000/1001 clean, 1006 abnormal. Killed peer fired `close` in 1ms. Bun pinned to 1.4.2.
+  - **(2) DONE — Caddy 2.11.4.** WebSocket upgrade works with no special configuration. Pongs arrived on the same cadence as a direct connection, an idle socket survived 20s against an 8s `idleTimeout`, and an abruptly killed peer produced 1006 through the proxy. Presence behaves identically behind Caddy.
+  - **(3) DONE — and worse than assumed, then better.** The app sees `::ffff:127.0.0.1`, and the peer port was identical across separate requests because Caddy pools its upstream connection — so the peer is a single connection shared between visitors, not just a loopback address. Keying a per-IP cap on it locks out the entire userbase. Separately: Caddy **replaces** `X-Forwarded-For` rather than appending, verified by forging a value and a chain; both were discarded. Reading the header directly is safe until someone adds `trusted_proxies`.
 - [ ] **T0 (P1, human: ~4h / CC: ~30m)** — matcher — Pure `planMatch(map, request, now)` with an undo
   - Surfaced by: Eng review Issues 1, 2, 8 — the zero-await rule was a comment, insert failure lost matches silently, and ordering tests need an injected clock
   - Files: `apps/server/src/matcher.ts`, `packages/protocol/src/match.ts`
