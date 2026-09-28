@@ -21,10 +21,12 @@ import {
   SHARE_CODE_LENGTH,
   SQUAD_SIZE,
   buildWhisper,
+  normalizeIgn,
   parseBucketKey,
   whisperFormat,
   type AccountId,
   type BucketKey,
+  type ErrorCode,
   type LobbyId,
   type LobbyMemberView,
   type LobbyRole,
@@ -54,7 +56,8 @@ type MemberRow = {
   enqueued_at: number;
   matched_at: number;
   left_at: number | null;
-  ign: string | null;
+  /** Non-null by schema: NOT NULL plus a non-blank CHECK, reached here via the FK. */
+  ign: string;
   platform: string | null;
   mastery_rank: number | null;
 };
@@ -137,7 +140,10 @@ export class Lobbies {
         `SELECT m.account_id, m.slot, m.enqueued_at, m.matched_at, m.left_at,
                 a.ign, a.platform, a.mastery_rank
            FROM lobby_members m
-           LEFT JOIN accounts a ON a.account_id = m.account_id
+           -- INNER, not LEFT. A foreign key guarantees the account row exists,
+           -- and an account row guarantees a non-blank IGN, so there is no
+           -- nameless-member case to carry through the view.
+           JOIN accounts a ON a.account_id = m.account_id
           WHERE m.lobby_id = ?
           ORDER BY m.slot`,
       )
@@ -160,7 +166,7 @@ export class Lobbies {
       };
       // The asymmetry, enforced by the data rather than by a client-side flag.
       if (role === "host" && !isHost) {
-        view.whisper = r.ign === null ? null : buildWhisper(r.ign, relicName, refinement);
+        view.whisper = buildWhisper(r.ign, relicName, refinement);
       }
       return view;
     });
@@ -281,17 +287,32 @@ export class Lobbies {
   }
 }
 
-/** Self-declared profile fields. Nothing here is verified — DE exposes no player API. */
+/**
+ * Create or update an account.
+ *
+ * The IGN is REQUIRED and is the only field that is. An account does not exist
+ * without one, because the product ends in a host typing that name into
+ * Warframe — a nameless account is one that cannot be invited, and every
+ * screen downstream would need a branch for a case that must not happen.
+ * Rejected here AND by a CHECK constraint, so neither a careless caller nor a
+ * future migration can produce one.
+ *
+ * Nothing here is verified: DE exposes no player API. Required and verified are
+ * different claims and only the first is made.
+ */
 export function upsertAccount(
   db: Database,
   account: {
     accountId: AccountId;
-    ign?: string | null;
+    ign: string;
     platform?: Platform | null;
     masteryRank?: number | null;
   },
   now: number,
 ): void {
+  const ign = normalizeIgn(account.ign);
+  if (ign === null) throw new IgnRequiredError();
+
   db.query(
     `INSERT INTO accounts (account_id, ign, platform, mastery_rank, created_at)
      VALUES (?, ?, ?, ?, ?)
@@ -299,13 +320,16 @@ export function upsertAccount(
        ign = excluded.ign,
        platform = excluded.platform,
        mastery_rank = excluded.mastery_rank`,
-  ).run(
-    account.accountId,
-    account.ign ?? null,
-    account.platform ?? null,
-    account.masteryRank ?? null,
-    now,
-  );
+  ).run(account.accountId, ign, account.platform ?? null, account.masteryRank ?? null, now);
+}
+
+/** Carries the wire code, so a caller never has to map it by hand. */
+export class IgnRequiredError extends Error {
+  readonly code: ErrorCode = "IGN_REQUIRED";
+  constructor() {
+    super("an in-game name is required and cannot be blank");
+    this.name = "IgnRequiredError";
+  }
 }
 
 let counter = 0;

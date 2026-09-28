@@ -16,9 +16,13 @@ import { Database } from "bun:sqlite";
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   account_id    TEXT PRIMARY KEY,
-  -- Self-declared, exactly like mastery rank: DE exposes no player API, so
-  -- nothing here is verified and nothing gates on it.
-  ign           TEXT,
+  -- REQUIRED, and never blank. Self-declared and unverified -- DE exposes no
+  -- player API -- but an account does not exist without one. The whole product
+  -- ends in a host typing someone's name into Warframe, so an account with no
+  -- name is an account that cannot be invited, and every screen downstream
+  -- would need a branch for a case that must not happen. Enforced here rather
+  -- than in a form, so no code path can create one.
+  ign           TEXT NOT NULL CHECK (length(trim(ign)) > 0),
   platform      TEXT,
   mastery_rank  INTEGER,
   created_at    INTEGER NOT NULL
@@ -39,7 +43,10 @@ CREATE TABLE IF NOT EXISTS lobbies (
 
 CREATE TABLE IF NOT EXISTS lobby_members (
   lobby_id      TEXT NOT NULL REFERENCES lobbies(lobby_id),
-  account_id    TEXT NOT NULL,
+  -- The FK is what makes the IGN guarantee reach this table: a member row
+  -- cannot exist without an account row, and an account row cannot exist
+  -- without a name. The lobby view therefore joins rather than left-joins.
+  account_id    TEXT NOT NULL REFERENCES accounts(account_id),
   slot          INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 3),
   -- Copied from the in-memory entry at fire time, because the bucket is gone by
   -- the time this row is written and the wait time is worth keeping.

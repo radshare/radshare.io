@@ -9,7 +9,7 @@ import {
   type Buckets,
 } from "@radshare/protocol";
 import { openDatabase } from "./db.ts";
-import { Lobbies, upsertAccount } from "./lobby.ts";
+import { IgnRequiredError, Lobbies, upsertAccount } from "./lobby.ts";
 import { planMatch } from "./matcher.ts";
 import { ReadyGates, type Gate } from "./readygate.ts";
 
@@ -18,8 +18,15 @@ const AXI = bucketKey("/Lotus/Types/Game/Projections/T4VoidProjectionGaussPrimeD
 /** The vendored WFCD lookup, stubbed to the display name the host pastes. */
 const relicNames = () => "Axi G9";
 
+function seeded(): Database {
+  const db = openDatabase();
+  withIgns(db);
+  return db;
+}
+
 function setup(): { db: Database; lobbies: Lobbies } {
   const db = openDatabase();
+  withIgns(db);
   let n = 0;
   let c = 0;
   const lobbies = new Lobbies(
@@ -46,6 +53,11 @@ function confirmedGate(startAt = 1000): Gate {
   return gate;
 }
 
+/**
+ * An account cannot exist without an IGN, so every test that creates a lobby
+ * creates these first. There is no nameless-member fixture because there is no
+ * nameless member.
+ */
 function withIgns(db: Database) {
   upsertAccount(db, { accountId: "p1", ign: "zylok", platform: "pc", masteryRank: 30 }, 1);
   upsertAccount(db, { accountId: "p2", ign: "mirefall", platform: "pc" }, 1);
@@ -115,7 +127,7 @@ describe("creating a lobby from a completed gate", () => {
 describe("the share code", () => {
   test("is six characters from an alphabet with no confusable letters", () => {
     const { lobbies } = setup();
-    const real = new Lobbies(openDatabase(), relicNames);
+    const real = new Lobbies(seeded(), relicNames);
     const { shareCode } = real.create(confirmedGate(), 9000);
 
     expect(shareCode).toHaveLength(SHARE_CODE_LENGTH);
@@ -127,7 +139,7 @@ describe("the share code", () => {
   });
 
   test("carries no information about the relic or the lobby", () => {
-    const real = new Lobbies(openDatabase(), relicNames);
+    const real = new Lobbies(seeded(), relicNames);
     const { lobbyId, shareCode } = real.create(confirmedGate(), 9000);
     expect(shareCode).not.toContain("AXI");
     expect(shareCode).not.toContain("G9");
@@ -147,7 +159,7 @@ describe("the share code", () => {
   });
 
   test("a generator that keeps colliding fails loudly rather than reusing a code", () => {
-    const db = openDatabase();
+    const db = seeded();
     let n = 0;
     const stuck = new Lobbies(db, relicNames, () => `lob${(n += 1)}`, () => "SAME01");
     stuck.create(confirmedGate(1000), 9000);
@@ -158,7 +170,6 @@ describe("the share code", () => {
 describe("the asymmetric view", () => {
   test("the host gets a ready-to-paste whisper for the other three", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const view = lobbies.viewFor(lobbyId, "p1")!;
@@ -173,7 +184,6 @@ describe("the asymmetric view", () => {
 
   test("the host gets no whisper for their own row", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const own = lobbies.viewFor(lobbyId, "p1")!.members.find((m) => m.isHost)!;
@@ -184,7 +194,6 @@ describe("the asymmetric view", () => {
     // Twelve whispers and colliding invites is the failure this prevents, and
     // the cheapest prevention is never sending a member the data to build one.
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const view = lobbies.viewFor(lobbyId, "p3")!;
@@ -194,7 +203,6 @@ describe("the asymmetric view", () => {
 
   test("a member is told which name to wait on; the host is not", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     expect(lobbies.viewFor(lobbyId, "p3")!.hostIgn).toBe("zylok");
@@ -203,7 +211,6 @@ describe("the asymmetric view", () => {
 
   test("each viewer sees exactly one row marked as themselves", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     for (const id of ["p1", "p2", "p3", "p4"]) {
@@ -213,22 +220,21 @@ describe("the asymmetric view", () => {
     }
   });
 
-  test("a member with no IGN yields a null whisper rather than a broken string", () => {
-    const { db, lobbies } = setup();
-    upsertAccount(db, { accountId: "p1", ign: "zylok", platform: "pc" }, 1);
-    // p2 never set one.
+  test("every member has a name and every non-host row a usable whisper", () => {
+    const { lobbies } = setup();
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
-    const p2 = lobbies.viewFor(lobbyId, "p1")!.members.find((m) => m.accountId === "p2")!;
-    expect(p2.ign).toBeNull();
-    expect(p2.whisper).toBeNull();
+    const view = lobbies.viewFor(lobbyId, "p1")!;
+    for (const m of view.members) expect(m.ign.length).toBeGreaterThan(0);
+    for (const m of view.members.filter((x) => !x.isHost)) {
+      expect(m.whisper).toContain(m.ign);
+    }
   });
 
   test("there is no readiness anywhere in the view", () => {
     // A lobby exists only once all four passed the gate, so everyone here has
     // already confirmed. A readiness field would be a second, weaker gate.
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const view = lobbies.viewFor(lobbyId, "p1")!;
@@ -239,7 +245,6 @@ describe("the asymmetric view", () => {
 
   test("mastery rank and platform are carried when set and null when not", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const members = lobbies.viewFor(lobbyId, "p1")!.members;
@@ -250,7 +255,6 @@ describe("the asymmetric view", () => {
 
   test("the reference line shows the format without naming anyone", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     expect(lobbies.viewFor(lobbyId, "p3")!.whisperFormat).toBe(
       "/w <name> radshare Axi G9 Radiant",
@@ -259,7 +263,6 @@ describe("the asymmetric view", () => {
 
   test("IGNs are plain -- no discriminator is invented anywhere", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     expect(JSON.stringify(lobbies.viewFor(lobbyId, "p1"))).not.toContain("#");
   });
@@ -273,7 +276,6 @@ describe("the asymmetric view", () => {
 describe("leaving", () => {
   test("the lobby continues at three and the row stays visible", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     expect(lobbies.leave(lobbyId, "p4", 9500).dissolved).toBe(false);
@@ -287,7 +289,6 @@ describe("leaving", () => {
     // The host needs to know who was already whispered, which is why the row is
     // marked rather than removed.
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     lobbies.leave(lobbyId, "p4", 9500);
 
@@ -317,7 +318,6 @@ describe("leaving", () => {
   test("the host leaving does not reassign the role", () => {
     // No host handoff. Members press Queue again instead.
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     lobbies.leave(lobbyId, "p1", 9500);
 
@@ -334,7 +334,6 @@ describe("abandoning the browser is never punished", () => {
     // Nothing in the lobby layer observes sockets, so there is no path by which
     // this removes anyone.
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
 
     const later = 9000 + 60 * 60 * 1000;
@@ -402,13 +401,64 @@ describe("dissolution", () => {
 
   test("a closed lobby is still readable, so the client can say it closed", () => {
     const { db, lobbies } = setup();
-    withIgns(db);
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     lobbies.close(lobbyId, 9500);
 
     const view = lobbies.viewFor(lobbyId, "p2");
     expect(view).not.toBeNull();
     expect(view!.closedAt).toBe(9500);
+  });
+});
+
+describe("an in-game name is required", () => {
+  test("an account cannot be created without one", () => {
+    const db = openDatabase();
+    expect(() => upsertAccount(db, { accountId: "x", ign: "" }, 1)).toThrow(/in-game name/);
+    expect(() => upsertAccount(db, { accountId: "x", ign: "   " }, 1)).toThrow(/in-game name/);
+  });
+
+  test("the error carries the wire code, so the caller does not map it by hand", () => {
+    const db = openDatabase();
+    try {
+      upsertAccount(db, { accountId: "x", ign: " " }, 1);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect((e as IgnRequiredError).code).toBe("IGN_REQUIRED");
+    }
+  });
+
+  test("surrounding whitespace is trimmed rather than stored", () => {
+    const db = openDatabase();
+    upsertAccount(db, { accountId: "x", ign: "  zylok  " }, 1);
+    const row = db
+      .query<{ ign: string }, [string]>("SELECT ign FROM accounts WHERE account_id = ?")
+      .get("x")!;
+    expect(row.ign).toBe("zylok");
+  });
+
+  test("the database refuses a blank name even if application code is bypassed", () => {
+    // Two independent guards. A future migration or a careless raw insert must
+    // not be able to produce a nameless account.
+    const db = openDatabase();
+    const insert = (ign: string | null) =>
+      db
+        .query("INSERT INTO accounts (account_id, ign, created_at) VALUES (?, ?, ?)")
+        .run("raw", ign, 1);
+    expect(() => insert(null)).toThrow();
+    expect(() => insert("")).toThrow();
+    expect(() => insert("  ")).toThrow();
+  });
+
+  test("a lobby member cannot exist without an account, so a name is always present", () => {
+    const db = openDatabase();
+    const lobbies = new Lobbies(db, relicNames);
+    expect(() => lobbies.create(confirmedGate(), 9000)).toThrow(/FOREIGN KEY/);
+  });
+
+  test("an over-long name is rejected", () => {
+    const db = openDatabase();
+    expect(() => upsertAccount(db, { accountId: "x", ign: "z".repeat(25) }, 1)).toThrow();
+    expect(() => upsertAccount(db, { accountId: "y", ign: "z".repeat(24) }, 1)).not.toThrow();
   });
 });
 
@@ -450,6 +500,7 @@ describe("capacity is enforced by the database", () => {
     const { db, lobbies } = setup();
     const { lobbyId } = lobbies.create(confirmedGate(), 9000);
     lobbies.leave(lobbyId, "p4", 9500);
+    upsertAccount(db, { accountId: "friend", ign: "latecomer", platform: "pc" }, 9500);
 
     expect(() =>
       db

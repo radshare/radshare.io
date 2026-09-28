@@ -495,6 +495,14 @@ never dissolve.
   reputation does not exist in this product. Plus chat.
   **Mastery rank is self-declared in the profile**, exactly like the IGN, because DE exposes no
   player API. It is a courtesy signal, never a gate, and absent when unset.
+  **The IGN is different: it is REQUIRED at account creation and can never be blank.** Mastery
+  rank is decoration and may be absent; the name is the thing the host types into Warframe, so an
+  account without one is an account that cannot be invited. Required is not the same as verified
+  — nothing checks that the name exists in-game, and nothing should. Enforced in three places so
+  no path can produce one: rejected by `upsertAccount`, a `NOT NULL` plus non-blank `CHECK` on
+  `accounts.ign`, and a foreign key from `lobby_members` so a member row cannot exist without an
+  account row. The consequence worth stating: a Clerk sign-in does not by itself create an
+  account. The first-run screen asks for the name, and the row is written then.
 - **There is no READY button in the lobby.** An earlier draft had one per member, with the host
   watching badges fill live — "informs the host, never blocks them". The **ready gate replaced it
   entirely**: readiness is now settled *before* the lobby exists, so a badge here would be a
@@ -1205,9 +1213,12 @@ that runs the game before anything else gets built.
   - A member with no self-declared IGN yields `whisper: null` rather than a string containing a placeholder. The host's UI must say so; copying a broken whisper is worse than copying nothing.
   - Durable state landed with it: `accounts`, `lobbies`, `lobby_members`, `events`, on `bun:sqlite`. **Capacity is a partial unique index on `(lobby_id, slot)`**, not a read-then-insert, so the five-person squad is impossible rather than unlikely. `chat_messages` is deliberately absent until chat is built.
   - Verify: host is the oldest `enqueuedAt`; non-hosts see the waiting banner and no name-action affordance
-- [ ] **T2 (P1, human: ~1d / CC: ~1h)** — board — Implement the two board modes
+- [~] **T2 (SERVER DONE, UI outstanding)** — board — Implement the two board modes
   - Surfaced by: Pass 7 — board mode follows queue state: global while unqueued, personal while queued
-  - Files: `apps/server/src/board.ts`, `apps/web/src/routes/+page.svelte`
+  - Files: `apps/server/src/board.ts` (DONE), `apps/web/src/routes/+page.svelte` (outstanding)
+  - **The mode is read from the buckets, never from a client claim.** `BoardStream.snapshot` sets its own mode from whether the account holds any entry, so a reconnect while queued lands in personal mode without the client having to remember it was queued — which is the same reason `you` is on every snapshot rather than only the global one.
+  - **Deltas recompute the projection rather than trusting a list of touched keys.** One bucket growing can push a different bucket off the bottom of the top 60, and that second bucket was never touched by the change. A touched-keys delta leaves a stale row on screen forever; the test for it is the 60-bucket case.
+  - `BoardCache` is the anonymous half and holds no `you` field at all, because an anonymous viewer cannot queue. The cached rows and the live rows are asserted equal — the cache is a different transport, not a lesser board.
   - Verify: unqueued (signed in or out) shows top 60 global; queueing cross-fades to own buckets with the `YOUR QUEUE` label; leaving the queue swaps back; an instant match skips personal mode entirely; `board.snapshot.you` drives the mode so a refresh while queued returns to personal without re-joining
 - [ ] **T3 (P1, human: ~2d / CC: ~3h)** — states — Build every cell of the interaction state table
   - Surfaced by: Pass 2 — the exclusion screen and the disconnected board were named but never designed

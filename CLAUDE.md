@@ -26,6 +26,14 @@ Auth: Clerk hosted sign-in, verified server-side with the official `@clerk/hono`
 SvelteKit SDK is deliberately kept out of the auth path. Steam is deferred (OpenID 2.0, not
 OAuth2, so Clerk cannot broker it).
 
+**An in-game name is REQUIRED and can never be blank.** A Clerk sign-in does not by itself create
+an `accounts` row — the first-run screen asks for the name and the row is written then. Enforced
+three ways so no path can produce a nameless account: `upsertAccount` rejects it, `accounts.ign`
+is `NOT NULL` with a non-blank `CHECK`, and `lobby_members.account_id` is a foreign key so a
+member row cannot exist without an account row. Required is not verified — DE exposes no player
+API and nothing checks the name is real. Mastery rank and platform stay optional; the name is the
+string the host types into Warframe, so an account without one cannot be invited.
+
 Content follows queue state; transport follows authentication:
 
 - **Anonymous** — cached `GET /api/board`, 10s cache, polled every 10s, server-rendered into

@@ -17,6 +17,7 @@ export const ERROR_COPY = {
   RATE_LIMITED: "Too many requests. Slow down for a moment.",
   CHAT_SEND_FAILED: "That message didn't send.",
   AUTH_FAILED: "Sign-in didn't complete. Try again.",
+  IGN_REQUIRED: "Enter your in-game name. The host needs it to invite you.",
 } as const satisfies Record<string, string>;
 
 export type ErrorCode = keyof typeof ERROR_COPY;

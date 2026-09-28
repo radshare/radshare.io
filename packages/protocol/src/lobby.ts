@@ -42,8 +42,8 @@ export type LobbyRole = "host" | "member";
 
 export type LobbyMemberView = {
   accountId: AccountId;
-  /** Self-declared. Null when the account never set one. */
-  ign: string | null;
+  /** Self-declared and unverified, but REQUIRED — never blank, never absent. */
+  ign: string;
   platform: Platform | null;
   /** Self-declared courtesy signal, never a gate. Null when unset. */
   masteryRank: number | null;
@@ -59,11 +59,10 @@ export type LobbyMemberView = {
    *
    * Present ONLY on the host's view, and never on the host's own row. This is
    * the asymmetry, enforced by the shape of the data rather than by a flag the
-   * client has to remember to check. Null means the member set no IGN, so no
-   * whisper can be built — the UI must say so rather than copying a broken
-   * string.
+   * client has to remember to check. It is never null: an account cannot exist
+   * without an IGN, so a whisper can always be built for a real member.
    */
-  whisper?: string | null;
+  whisper?: string;
 };
 
 export type LobbyView = {
@@ -75,7 +74,7 @@ export type LobbyView = {
   refinement: Refinement;
   role: LobbyRole;
   hostAccountId: AccountId;
-  /** The name to wait on. Null on the host's own view — they are the host. */
+  /** The name to wait on. Null ONLY on the host's own view — they are the host. */
   hostIgn: string | null;
   /** All four, in slot order, including anyone who left. */
   members: LobbyMemberView[];
@@ -86,6 +85,22 @@ export type LobbyView = {
   /** Non-null once dissolved. */
   closedAt: number | null;
 };
+
+/** Longest name this accepts. Generous — the point is to reject blank, not to police. */
+export const IGN_MAX_LENGTH = 24;
+
+/**
+ * An IGN is REQUIRED at account creation and can never be blank.
+ *
+ * It is still unverified: DE exposes no player API, so this checks shape and
+ * nothing else. Required and verified are different things, and only the first
+ * is claimed.
+ */
+export function normalizeIgn(raw: string): string | null {
+  const ign = raw.trim();
+  if (ign.length === 0 || ign.length > IGN_MAX_LENGTH) return null;
+  return ign;
+}
 
 /**
  * The whisper the host pastes into Warframe.
