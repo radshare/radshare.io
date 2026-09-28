@@ -10,7 +10,7 @@
 import { Database } from "bun:sqlite";
 import { parseClientMessage } from "@radshare/protocol";
 import { createApp } from "./app.ts";
-import { buildAuthenticator } from "./auth.ts";
+import { buildAuthenticator, isDevAuth } from "./auth.ts";
 import { openDatabase } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { ConnectionCap, MessageLimiter } from "./limits.ts";
@@ -43,7 +43,12 @@ export function start(env = process.env) {
     },
   });
 
-  const app = createApp({ hub, cap, authenticate: buildAuthenticator(env) });
+  const app = createApp({
+    hub,
+    cap,
+    authenticate: buildAuthenticator(env),
+    devAuth: isDevAuth(env),
+  });
 
   const server = Bun.serve({
     port: Number(env.PORT ?? 3000),
@@ -125,5 +130,9 @@ export function start(env = process.env) {
 
 if (import.meta.main) {
   const { server } = start();
-  console.log(`radshare listening on http://${server.hostname}:${server.port}`);
+  const where = `http://${server.hostname}:${server.port}`;
+  console.log(`radshare listening on ${where}`);
+  if (isDevAuth(process.env)) {
+    console.log(`dev auth ON — sign in at ${where}/api/dev-login?account=you&ign=zylok`);
+  }
 }

@@ -18,6 +18,7 @@ import { BoardCache } from "./board.ts";
 import { BOARD_CACHE_MS, PLATFORMS, type Platform } from "@radshare/protocol";
 import { clientIp, ConnectionCap, MAX_SOCKETS_PER_IP } from "./limits.ts";
 import { IgnRequiredError, upsertAccount } from "./lobby.ts";
+import { DEV_COOKIE } from "./auth.ts";
 
 /** Injected per request by the server entry; see `index.ts`. */
 export type AppBindings = {
@@ -32,6 +33,12 @@ export type AppDeps = {
   cap: ConnectionCap;
   authenticate: (req: Request) => Promise<string | null>;
   now?: () => number;
+  /**
+   * Registers `/api/dev-login`. Only ever true when the dev bypass is already
+   * the active authenticator, so this route cannot exist in production even if
+   * someone passes the flag by mistake.
+   */
+  devAuth?: boolean;
 };
 
 export function createApp(deps: AppDeps) {
@@ -60,6 +67,31 @@ export function createApp(deps: AppDeps) {
       playersQueued: deps.hub.playersQueued(),
     });
   });
+
+  /**
+   * Sign in as anybody, and set the cookie a browser needs. DEV ONLY.
+   *
+   * A browser cannot put a header on a WebSocket handshake, so without a
+   * cookie the dev bypass works for scripts and not for the actual app. This
+   * also creates the account, because an in-game name is required before
+   * anyone can queue and there is no first-run screen yet.
+   */
+  if (deps.devAuth) {
+    app.get("/api/dev-login", (c) => {
+      const account = c.req.query("account") ?? "dev";
+      const ign = c.req.query("ign") ?? account;
+      try {
+        upsertAccount(deps.hub.db, { accountId: account, ign, platform: "pc" }, now());
+      } catch {
+        return c.json({ error: "IGN_REQUIRED" }, 400);
+      }
+      c.header(
+        "Set-Cookie",
+        `${DEV_COOKIE}=${encodeURIComponent(account)}; Path=/; SameSite=Lax; Max-Age=86400`,
+      );
+      return c.redirect(c.req.query("next") ?? "/");
+    });
+  }
 
   /**
    * Who am I, and have I finished signing up?

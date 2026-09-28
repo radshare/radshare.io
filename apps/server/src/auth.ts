@@ -50,18 +50,6 @@ export class MissingClerkKeyError extends Error {
   }
 }
 
-/**
- * Trusts an `x-dev-account` header. LOCAL DEVELOPMENT ONLY.
- *
- * Gated twice on purpose — an explicit opt-in AND a non-production
- * environment — because a dev bypass that can be switched on by one variable
- * is a dev bypass that eventually ships. `buildAuthenticator` refuses to
- * return this when `NODE_ENV === "production"` no matter what else is set.
- */
-export function devAuthenticator(): Authenticator {
-  return async (req) => req.headers.get("x-dev-account");
-}
-
 export type AuthEnv = {
   NODE_ENV?: string;
   CLERK_SECRET_KEY?: string;
@@ -70,6 +58,49 @@ export type AuthEnv = {
   RADSHARE_AUTHORIZED_PARTIES?: string;
 };
 
+/** The cookie a browser carries once `/api/dev-login` has been visited. */
+export const DEV_COOKIE = "radshare_dev";
+
+/**
+ * Identifies the caller from a header, a cookie or a query parameter. LOCAL
+ * DEVELOPMENT ONLY.
+ *
+ * Three sources because the three callers differ. A script can set a header; a
+ * BROWSER CANNOT — `new WebSocket(url)` takes no headers at all — so the
+ * browser path needs a cookie, and the query parameter is how that cookie gets
+ * set in the first place.
+ *
+ * Gated twice on purpose — an explicit opt-in AND a non-production
+ * environment — because a dev bypass that one variable enables is a dev bypass
+ * that eventually ships. `buildAuthenticator` refuses to return this when
+ * `NODE_ENV === "production"` no matter what else is set.
+ */
+export function devAuthenticator(): Authenticator {
+  return async (req) => {
+    const header = req.headers.get("x-dev-account");
+    if (header) return header;
+
+    const query = new URL(req.url).searchParams.get("dev");
+    if (query) return query;
+
+    return readCookie(req.headers.get("cookie"), DEV_COOKIE);
+  };
+}
+
+function readCookie(header: string | null, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("=")) || null;
+  }
+  return null;
+}
+
+/** True when the dev bypass is the active authenticator. */
+export function isDevAuth(env: AuthEnv): boolean {
+  return env.NODE_ENV !== "production" && env.RADSHARE_DEV_AUTH === "1";
+}
+
 /**
  * Picks the authenticator and fails LOUDLY rather than falling back.
  *
@@ -77,9 +108,7 @@ export type AuthEnv = {
  * so a missing secret key throws at boot instead of degrading.
  */
 export function buildAuthenticator(env: AuthEnv): Authenticator {
-  const isProduction = env.NODE_ENV === "production";
-
-  if (!isProduction && env.RADSHARE_DEV_AUTH === "1") return devAuthenticator();
+  if (isDevAuth(env)) return devAuthenticator();
 
   if (!env.CLERK_SECRET_KEY) throw new MissingClerkKeyError();
 

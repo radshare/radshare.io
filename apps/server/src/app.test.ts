@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { bucketKey } from "@radshare/protocol";
 import { createApp, type AppBindings } from "./app.ts";
-import { buildAuthenticator, devAuthenticator, MissingClerkKeyError } from "./auth.ts";
+import { buildAuthenticator, devAuthenticator, isDevAuth, MissingClerkKeyError } from "./auth.ts";
 import { openDatabase } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { upsertAccount } from "./lobby.ts";
@@ -9,7 +9,9 @@ import { ConnectionCap } from "./limits.ts";
 
 const AXI = bucketKey("Axi A2", "radiant");
 
-function harness(opts: { authenticate?: (req: Request) => Promise<string | null> } = {}) {
+function harness(
+  opts: { authenticate?: (req: Request) => Promise<string | null>; devAuth?: boolean } = {},
+) {
   let clock = 5000;
   const db = openDatabase();
   // An account cannot queue without an in-game name, so an unseeded hub is not
@@ -31,6 +33,7 @@ function harness(opts: { authenticate?: (req: Request) => Promise<string | null>
     cap,
     authenticate: opts.authenticate ?? (async () => "account-1"),
     now: () => clock,
+    devAuth: opts.devAuth ?? false,
   });
 
   const env: AppBindings = {
@@ -254,6 +257,54 @@ describe("GET /ws", () => {
       expect(res.status).toBe(400);
     }
     expect(cap.count("198.51.100.7")).toBe(0);
+  });
+});
+
+describe("the dev bypass reaches a browser", () => {
+  test("a browser cannot set a header, so a cookie is accepted", async () => {
+    // `new WebSocket(url)` takes no headers at all. Without this the dev
+    // bypass works for scripts and not for the actual app.
+    const auth = devAuthenticator();
+    const req = new Request("http://x/ws", { headers: { cookie: "radshare_dev=zylok" } });
+    expect(await auth(req)).toBe("zylok");
+  });
+
+  test("a query parameter works too, which is how the cookie gets set", async () => {
+    const auth = devAuthenticator();
+    expect(await auth(new Request("http://x/?dev=zylok"))).toBe("zylok");
+  });
+
+  test("a header still wins, for scripts", async () => {
+    const auth = devAuthenticator();
+    const req = new Request("http://x/?dev=query", {
+      headers: { "x-dev-account": "header", cookie: "radshare_dev=cookie" },
+    });
+    expect(await auth(req)).toBe("header");
+  });
+
+  test("other cookies are not mistaken for it", async () => {
+    const auth = devAuthenticator();
+    const req = new Request("http://x/", { headers: { cookie: "session=abc; other=radshare_dev" } });
+    expect(await auth(req)).toBeNull();
+  });
+
+  test("isDevAuth is false in production whatever else is set", () => {
+    expect(isDevAuth({ NODE_ENV: "production", RADSHARE_DEV_AUTH: "1" })).toBe(false);
+    expect(isDevAuth({ NODE_ENV: "development", RADSHARE_DEV_AUTH: "1" })).toBe(true);
+    expect(isDevAuth({ NODE_ENV: "development" })).toBe(false);
+  });
+
+  test("dev-login sets the cookie and creates the account", async () => {
+    const h = harness({ devAuth: true });
+    const res = await h.get("/api/dev-login?account=zylok&ign=zylok");
+
+    expect(res.headers.get("set-cookie")).toContain("radshare_dev=zylok");
+    expect(h.hub.hasAccount("zylok")).toBe(true);
+  });
+
+  test("the route does not exist unless the bypass is active", async () => {
+    const h = harness();
+    expect((await h.get("/api/dev-login?account=zylok")).status).toBe(404);
   });
 });
 
