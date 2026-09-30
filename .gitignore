@@ -8,3 +8,6 @@ build/
 .env.*
 !.env.example
 .gstack/
+
+# Gong previews rendered by scripts/preview-gong.ts
+*.wav

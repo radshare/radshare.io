@@ -5,6 +5,8 @@
   import Lobby from "$lib/components/Lobby.svelte";
   import ReadyCheck from "$lib/components/ReadyCheck.svelte";
   import QueueComposer from "$lib/components/QueueComposer.svelte";
+  import SoundControl from "$lib/components/SoundControl.svelte";
+  import { notify } from "$lib/notify.svelte.ts";
   import { countsAreLive } from "$lib/boardState.ts";
   import { readyFailedCopy, errorCopy } from "@radshare/protocol";
   import { labelFor, refinementLabel, waitingCopy } from "$lib/relics.ts";
@@ -20,9 +22,31 @@
   let now = $state(Date.now());
   let ticker: ReturnType<typeof setInterval>;
 
+  const BASE_TITLE = "radshare — Warframe relic squad queue";
+
   onMount(() => {
     socket.start();
+    notify.start(BASE_TITLE);
     ticker = setInterval(() => (now = Date.now()), 1000);
+  });
+
+  /**
+   * Fires the cues once per gate, on the transition into one.
+   *
+   * Keyed on gateId rather than on truthiness: a `ready.state` update while
+   * the popup is open would otherwise re-strike the gong every time somebody
+   * else confirmed.
+   */
+  let announced = $state<string | null>(null);
+  $effect(() => {
+    const gate = client.gate;
+    if (gate && gate.gateId !== announced) {
+      announced = gate.gateId;
+      notify.matchFound(labelFor(gate.bucketKey).name);
+    } else if (!gate && announced !== null) {
+      announced = null;
+      notify.clear();
+    }
   });
   onDestroy(() => {
     clearInterval(ticker);
@@ -123,8 +147,25 @@
   {#if data.updatedAgo !== null && client.board.at === 0}
     <p class="type-caption">updated {data.updatedAgo}s ago</p>
   {/if}
+
+  <SoundControl
+    prefs={notify.prefs}
+    notificationsAvailable={typeof Notification !== "undefined" &&
+      Notification.permission === "default"}
+    onMute={(m) => notify.setMuted(m)}
+    onVolume={(v) => notify.setVolume(v)}
+    onPreview={() => notify.preview()}
+    onEnableNotifications={() => notify.requestPermission()}
+  />
 {/if}
 
 {#if client.gate}
-  <ReadyCheck gate={client.gate} {now} onConfirm={() => socket.connection?.confirmReady()} />
+  <ReadyCheck
+    gate={client.gate}
+    {now}
+    onConfirm={() => {
+      notify.clear();
+      socket.connection?.confirmReady();
+    }}
+  />
 {/if}

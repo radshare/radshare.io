@@ -1310,10 +1310,15 @@ that runs the game before anything else gets built.
   - Surfaced by: Issue 8 follow-up — group formation so friends queue as a unit and the matcher fills the remaining seats. Requires `planMatch` to keep a group of two or three together in one match or not match them at all.
   - Files: `apps/server/src/matcher.ts`, `apps/server/src/groups.ts`, `apps/web/src/routes/join/+page.svelte`
   - Verify: a code adds you to a group of at most three; the group queues as a unit and `planMatch` either places all of them in one match or none; codes are 6 alphanumeric characters carrying no relic or lobby information; group size is enforced by a database constraint so two simultaneous joiners cannot exceed three; attempts are rate-limited per IP
-- [ ] **T15 (P1, human: ~4h / CC: ~30m)** — notify — Gong on match, title flip, Notification
+- [x] **T15 (DONE)** — notify — Gong on match, title flip, Notification
   - Surfaced by: design review, match ping audio — the only cue that reaches a user in fullscreen Warframe
-  - Files: `apps/web/src/lib/notify.ts`, `apps/web/src/lib/audio/gong.ts`
+  - Files: `apps/web/src/lib/notify.ts`, `apps/web/src/lib/audio/gong.ts`, `apps/web/src/lib/components/SoundControl.svelte`, `scripts/preview-gong.ts`
   - Verify: AudioContext unlocks on first gesture and survives reconnect; mute and volume persist; the gong is distinguishable from Warframe audio in a side-by-side listen
+  - **Synthesised, not an audio asset.** Eight inharmonic partials with staggered decays is a few dozen lines; a file would be several hundred kilobytes on a page whose whole claim is that it paints a populated board before JavaScript runs.
+  - **The partials are deliberately not integer multiples.** Integer multiples are a musical tone — a bell, a chime, a UI beep. Struck metal is inharmonic, and that is the entire difference between "the app wants me" and "something happened in game". Measured on the rendered output: energy at every intended ratio, and 0.0002 of the fundamental at the 2nd harmonic. A test fails if the ratios ever drift toward integers.
+  - **Three cues, because each fails differently.** The gong fails when the tab has never been clicked (browsers refuse audio without a gesture); the Notification fails without permission, which is never requested on page load; the title flip never fails and is the only one that works with audio blocked. None of them is conditional on `visibilityState`, because it reports *visible* for a tab sitting behind a fullscreen game on a second monitor — the exact case this exists for.
+  - iOS reports an audio context as `"interrupted"` rather than `"suspended"` after a phone call. It is resumed at play time along with `"suspended"`; treating it as running is how the gong silently stops working for the rest of the session.
+  - `bun scripts/preview-gong.ts` renders the real spectrum to a WAV, importing `GONG_PARTIALS` rather than restating them, so the side-by-side listen tests the thing that ships.
 - [ ] **T16 (P2, human: ~3h / CC: ~20m)** — board — Dismissible first-visit strip
   - Surfaced by: design review, HOW IT WORKS had no destination and the board can read as a list rather than a queue
   - Files: `apps/web/src/lib/components/FirstVisitStrip.svelte`
