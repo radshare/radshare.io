@@ -73,12 +73,46 @@ export const INITIAL_STATE: ClientState = {
   retryAt: null,
 };
 
+/** The two `localStorage` calls this needs, injected so tests need no browser. */
+export type SelectionStore = {
+  read(): BucketKey[] | null;
+  write(selection: BucketKey[] | null): void;
+};
+
+export const SELECTION_KEY = "radshare.selection";
+
+export function localSelectionStore(): SelectionStore {
+  return {
+    read() {
+      try {
+        const raw = localStorage.getItem(SELECTION_KEY);
+        if (!raw) return null;
+        const parsed: unknown = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+        return parsed.filter((k): k is BucketKey => typeof k === "string" && k.length > 0);
+      } catch {
+        return null;
+      }
+    },
+    write(selection) {
+      try {
+        if (selection === null || selection.length === 0) localStorage.removeItem(SELECTION_KEY);
+        else localStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
+      } catch {
+        // Private mode, disabled storage. A queue that works only with
+        // storage would be worse than one that forgets across refreshes.
+      }
+    },
+  };
+}
+
 export type ConnectionOptions = {
   transport: TransportFactory;
   onChange: (state: ClientState) => void;
   now?: () => number;
   setTimer?: (fn: () => void, ms: number) => number;
   clearTimer?: (handle: number) => void;
+  storage?: SelectionStore;
 };
 
 export class Connection {
@@ -98,7 +132,9 @@ export class Connection {
    */
   #selection: BucketKey[] = [];
 
-  #opts: Required<Omit<ConnectionOptions, "transport" | "onChange">> &
+  #storage: SelectionStore | null;
+
+  #opts: Required<Omit<ConnectionOptions, "transport" | "onChange" | "storage">> &
     Pick<ConnectionOptions, "transport" | "onChange">;
 
   constructor(opts: ConnectionOptions) {
@@ -109,6 +145,11 @@ export class Connection {
       transport: opts.transport,
       onChange: opts.onChange,
     };
+    this.#storage = opts.storage ?? null;
+    // Guarded at the CALL SITE, not just inside the default store. Some
+    // browsers throw on touching `localStorage` at all when cookies are
+    // blocked, and a client that cannot construct is a blank page.
+    this.#selection = this.#readStored();
   }
 
   get state(): ClientState {
@@ -142,12 +183,20 @@ export class Connection {
   /** Always the FULL selection, never a diff — the server treats it as a set. */
   join(selection: BucketKey[]): void {
     this.#selection = [...selection];
+    this.#writeStored(this.#selection);
     this.#patch({ error: null, gateFailure: null });
     this.#send({ type: "queue.join", selection: this.#selection });
   }
 
+  /**
+   * Clears the stored selection as well as the live one.
+   *
+   * Leaving is a DECISION, and a refresh must not undo it. Without this the
+   * next page load would helpfully put you back in a queue you just left.
+   */
   leave(): void {
     this.#selection = [];
+    this.#writeStored(null);
     this.#patch({ error: null, gateFailure: null });
     this.#send({ type: "queue.leave" });
   }
@@ -171,6 +220,28 @@ export class Connection {
     this.#send({ type: "lobby.leave", lobbyId: lobby.lobbyId });
   }
 
+  #readStored(): BucketKey[] {
+    try {
+      return this.#storage?.read() ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  #writeStored(selection: BucketKey[] | null): void {
+    try {
+      this.#storage?.write(selection);
+    } catch {
+      // Storage is an optimisation. Losing it costs a queue position across a
+      // refresh, which is survivable; throwing here costs the whole page.
+    }
+  }
+
+  /** What would be replayed on the next connect. Drives the composer's chips. */
+  get selection(): BucketKey[] {
+    return [...this.#selection];
+  }
+
   /** Back to the queue after a failed gate, with the selection still loaded. */
   requeue(): void {
     if (this.#selection.length > 0) this.join(this.#selection);
@@ -186,8 +257,16 @@ export class Connection {
     this.#patch({ connection: "live", retryAt: null, error: null });
 
     // The server sends a snapshot on open and hands back an open lobby without
-    // being asked, so there is nothing to request. Re-sending the selection is
-    // only needed when we were queued before the drop.
+    // being asked, so there is nothing to request.
+    //
+    // Re-sending the selection covers two cases that look the same from here.
+    // A dropped socket was evicted from every bucket, so a reconnect must
+    // re-queue or the user silently leaves the queue by losing their Wi-Fi.
+    // A REFRESH is the same event: the old socket closed, the account was
+    // evicted, and the new page has no memory — which is what the stored
+    // selection is for. Either way the position resets, which is the honest
+    // cost of presence and the reason there is no grace window pretending
+    // otherwise.
     if (this.#selection.length > 0) this.#send({ type: "queue.join", selection: this.#selection });
   }
 

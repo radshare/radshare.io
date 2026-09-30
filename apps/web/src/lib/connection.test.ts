@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { bucketKey, type BucketKey, type ServerMessage } from "@radshare/protocol";
+import { bucketKey, findRelicByName, type BucketKey, type ServerMessage } from "@radshare/protocol";
 import {
   applyDelta,
   applySnapshot,
@@ -16,7 +16,10 @@ const AXI = bucketKey("Axi A2", "radiant");
 const MESO = bucketKey("Meso B4", "radiant");
 
 /** A fake transport plus a hand-cranked clock and timer queue. */
-function harness() {
+function harness(storage?: {
+  read: () => string[] | null;
+  write: (v: string[] | null) => void;
+}) {
   let clock = 1000;
   const sent: string[] = [];
   const timers: { fn: () => void; at: number; handle: number }[] = [];
@@ -46,6 +49,7 @@ function harness() {
       const i = timers.findIndex((t) => t.handle === h);
       if (i >= 0) timers.splice(i, 1);
     },
+    ...(storage ? { storage } : {}),
   });
 
   return {
@@ -445,6 +449,66 @@ describe("the lobby", () => {
   });
 });
 
+describe("the selection survives a refresh", () => {
+  function withStorage(initial: string[] | null = null) {
+    let stored = initial;
+    const store = {
+      read: () => stored,
+      write: (v: string[] | null) => {
+        stored = v;
+      },
+    };
+    const h = harness(store);
+    return { ...h, get stored() { return stored; } };
+  }
+
+  test("joining stores the selection", () => {
+    const h = withStorage();
+    h.conn.connect();
+    h.open();
+    h.conn.join([AXI, MESO]);
+    expect(h.stored).toEqual([AXI, MESO]);
+  });
+
+  test("a fresh page re-queues from storage on connect", () => {
+    // A refresh closes the socket, which evicts the account from every bucket.
+    // Without this the user silently leaves a queue they never left.
+    const h = withStorage([AXI, MESO]);
+    h.conn.connect();
+    h.open();
+    expect(h.parsed()).toEqual([{ type: "queue.join", selection: [AXI, MESO] }]);
+  });
+
+  test("leaving clears storage, so a refresh does not undo the decision", () => {
+    const h = withStorage([AXI]);
+    h.conn.connect();
+    h.open();
+    h.conn.leave();
+    expect(h.stored).toBeNull();
+  });
+
+  test("nothing stored means nothing sent", () => {
+    const h = withStorage(null);
+    h.conn.connect();
+    h.open();
+    expect(h.sent).toEqual([]);
+  });
+
+  test("unreadable storage is not fatal", () => {
+    // Private mode, storage disabled. A queue that works only with storage
+    // would be worse than one that forgets across refreshes.
+    const h = harness({
+      read: () => {
+        throw new Error("denied");
+      },
+      write: () => {
+        throw new Error("denied");
+      },
+    });
+    expect(() => h.conn.connect()).not.toThrow();
+  });
+});
+
 describe("errors", () => {
   test("are surfaced by code, never swallowed", () => {
     const h = harness();
@@ -472,14 +536,24 @@ describe("errors", () => {
 });
 
 describe("relic labels", () => {
-  test("fall back to the id rather than a placeholder", () => {
-    expect(labelFor(AXI)).toEqual({ relicId: "Axi A2", name: "Axi A2", refinement: "radiant" });
+  test("resolve a real relic to its name and tier", () => {
+    const relic = findRelicByName("Axi A1")!;
+    expect(labelFor(bucketKey(relic.id, "radiant"))).toEqual({
+      relicId: relic.id,
+      name: "Axi A1",
+      tier: "axi",
+      refinement: "radiant",
+    });
   });
 
-  test("use the vendored name when there is one", () => {
-    expect(labelFor(bucketKey("/Lotus/T4/Gauss", "intact"), { "/Lotus/T4/Gauss": "Axi G9" }).name).toBe(
-      "Axi G9",
-    );
+  test("fall back to the id rather than inventing a name", () => {
+    // Ugly beats wrong on a board whose only claim is that it is real.
+    expect(labelFor(bucketKey("NotARelic", "intact"))).toEqual({
+      relicId: "NotARelic",
+      name: "NotARelic",
+      tier: null,
+      refinement: "intact",
+    });
   });
 
   test("a lone queuer is told they are early, not shown a bare number", () => {

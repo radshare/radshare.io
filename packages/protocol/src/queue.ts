@@ -6,7 +6,20 @@
 
 export type AccountId = string;
 
-/** WFCD `uniqueName`, carried verbatim so the vendored file is the only source of truth. */
+/**
+ * A relic, independent of refinement.
+ *
+ * Derived from WFCD's `uniqueName` by stripping the common
+ * `/Lotus/Types/Game/Projections/` prefix and the refinement suffix — because
+ * WFCD HAS NO refinement-independent relic. Every entry in their file is one
+ * (relic, refinement) pair, with the refinement baked into both the display
+ * name ("Axi A1 Radiant") and the id (…EPlatinum). Carrying their id verbatim
+ * would produce keys like `T4VoidProjectionEBronze:radiant`, which reads
+ * "Intact, radiant".
+ *
+ * See `relics.ts`. The vendored file records the prefix and the suffix map, so
+ * the original uniqueName is always recoverable.
+ */
 export type RelicId = string;
 
 export const REFINEMENTS = ["intact", "exceptional", "flawless", "radiant"] as const;

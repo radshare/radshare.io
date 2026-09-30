@@ -1,25 +1,38 @@
 /**
  * Turning a bucket key into something a person reads.
  *
- * Relic display names come from the vendored WFCD build-time JSON. Until that
- * file is generated the id is shown verbatim — ugly, but never wrong, and
- * never a placeholder standing in for a real relic.
+ * Names and tiers come from the vendored WFCD list in `@radshare/protocol`,
+ * which both ends share — so a board row, a ready check and a lobby header
+ * cannot disagree about what a relic is called.
  */
 
-import { parseBucketKey, type BucketKey, type Refinement } from "@radshare/protocol";
+import {
+  parseBucketKey,
+  relicName,
+  relicTier,
+  type BucketKey,
+  type Refinement,
+  type RelicTier,
+} from "@radshare/protocol";
 
 export type RelicLabel = {
   relicId: string;
-  /** e.g. "Axi G9". Falls back to the id when the name is unknown. */
+  /** e.g. "Axi G9". Falls back to the id when the relic is unknown. */
   name: string;
+  tier: RelicTier | null;
   refinement: Refinement;
 };
 
-export type RelicNames = Record<string, string>;
-
-export function labelFor(key: BucketKey, names: RelicNames = {}): RelicLabel {
+/**
+ * Names come from the vendored WFCD list, which both ends share — so a board
+ * row and a lobby header cannot disagree about what a relic is called.
+ *
+ * An unknown id renders verbatim rather than as a placeholder. Ugly beats
+ * wrong on a board whose only claim is that its contents are real.
+ */
+export function labelFor(key: BucketKey): RelicLabel {
   const { relicId, refinement } = parseBucketKey(key);
-  return { relicId, name: names[relicId] ?? relicId, refinement };
+  return { relicId, name: relicName(relicId), tier: relicTier(relicId), refinement };
 }
 
 /** Title case for display. The wire always carries the lowercase value. */

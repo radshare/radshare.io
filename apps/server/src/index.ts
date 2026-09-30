@@ -8,7 +8,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { parseClientMessage } from "@radshare/protocol";
+import { isKnownRelic, parseClientMessage, relicName } from "@radshare/protocol";
 import { createApp } from "./app.ts";
 import { buildAuthenticator, isDevAuth } from "./auth.ts";
 import { openDatabase } from "./db.ts";
@@ -30,14 +30,15 @@ export function start(env = process.env) {
   const cap = new ConnectionCap();
   const limiter = new MessageLimiter();
 
-  // Relic display names come from the vendored WFCD build-time JSON. Until it
-  // is generated the id is shown verbatim, which is ugly but never wrong.
-  const relicName = (relicId: string) => relicId;
 
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>();
   const hub = new Hub({
     db,
     relicName,
+    // A bucket key arrives from a client, so the relic in it is checked
+    // against the vendored list before it can create a bucket. Without this a
+    // socket can fill the board with rows that resolve to no relic at all.
+    knownRelic: isKnownRelic,
     send: (connectionId, message) => {
       sockets.get(connectionId)?.send(JSON.stringify(message));
     },

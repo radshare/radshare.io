@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { LobbyView } from "@radshare/protocol";
   import { refinementLabel } from "$lib/relics.ts";
+  import { relicTier } from "@radshare/protocol";
   import TierBadge from "./TierBadge.svelte";
 
   /**
@@ -33,7 +34,7 @@
 
 <section>
   <div class="flex items-center gap-[var(--space-2)]" style="padding-top: var(--space-6)">
-    <TierBadge relicName={lobby.relicName} />
+    <TierBadge tier={relicTier(lobby.bucketKey.split(":")[0] ?? "")} />
     <h1 class="type-heading font-mono">{lobby.relicName}</h1>
     <span class="type-caption">{refinementLabel(lobby.refinement)}</span>
   </div>

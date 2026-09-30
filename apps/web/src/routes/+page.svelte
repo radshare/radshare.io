@@ -4,6 +4,7 @@
   import ConnectionBar from "$lib/components/ConnectionBar.svelte";
   import Lobby from "$lib/components/Lobby.svelte";
   import ReadyCheck from "$lib/components/ReadyCheck.svelte";
+  import QueueComposer from "$lib/components/QueueComposer.svelte";
   import { countsAreLive } from "$lib/boardState.ts";
   import { readyFailedCopy, errorCopy } from "@radshare/protocol";
   import { labelFor, refinementLabel, waitingCopy } from "$lib/relics.ts";
@@ -48,6 +49,7 @@
       return {
         bucketKey: row.bucketKey,
         relicName: label.name,
+        tier: label.tier,
         refinement: refinementLabel(label.refinement),
         count: row.count,
         waitedMs: 0,
@@ -55,6 +57,8 @@
       };
     }),
   );
+
+  let queued = $derived(client.board.you.length > 0);
 
   let mine = $derived(client.board.you[0]);
   let mineCopy = $derived(mine ? waitingCopy(mine.count, labelFor(mine.bucketKey).name) : null);
@@ -97,6 +101,14 @@
 {#if client.lobby}
   <Lobby lobby={client.lobby} onLeave={() => socket.connection?.leaveLobby()} />
 {:else}
+  <QueueComposer
+    {queued}
+    queuedCount={client.board.you.length}
+    disabled={client.connection !== "live"}
+    onQueue={(selection) => socket.connection?.join(selection)}
+    onLeave={() => socket.connection?.leave()}
+  />
+
   {#if mineCopy}
     <p class="type-caption" style="padding-top: var(--space-4)">{mineCopy}</p>
   {/if}

@@ -6,7 +6,12 @@
  */
 
 import { browser } from "$app/environment";
-import { Connection, webSocketTransport, type ClientState } from "./connection.ts";
+import {
+  Connection,
+  localSelectionStore,
+  webSocketTransport,
+  type ClientState,
+} from "./connection.ts";
 import { INITIAL_STATE } from "./connection.ts";
 
 export class SocketStore {
@@ -21,6 +26,10 @@ export class SocketStore {
 
     this.#conn = new Connection({
       transport: webSocketTransport(absolute.toString()),
+      // A refresh closes the socket, which evicts the account from every
+      // bucket. Without the stored selection the new page has no memory and
+      // the user silently leaves a queue they never left.
+      storage: localSelectionStore(),
       onChange: (next) => {
         this.state = next;
       },

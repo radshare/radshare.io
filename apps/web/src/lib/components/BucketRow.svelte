@@ -1,6 +1,7 @@
 <script lang="ts">
   import FillSegments from "./FillSegments.svelte";
   import TierBadge from "./TierBadge.svelte";
+  import type { RelicTier } from "@radshare/protocol";
 
   /**
    * One (relic, refinement) line. 44px, which doubles as the minimum touch
@@ -11,12 +12,14 @@
    */
   let {
     relicName,
+    tier,
     refinement,
     count,
     waitedMs,
     mine = false,
   }: {
     relicName: string;
+    tier: RelicTier | null;
     refinement: string;
     count: number;
     waitedMs: number;
@@ -36,7 +39,7 @@
   style={mine ? "background: var(--surface-raised)" : ""}
 >
   <td class="type-data px-[var(--space-3)]">{relicName}</td>
-  <td class="px-[var(--space-3)]"><TierBadge {relicName} /></td>
+  <td class="px-[var(--space-3)]"><TierBadge {tier} /></td>
   <td class="type-caption px-[var(--space-3)] capitalize">{refinement}</td>
   <td class="px-[var(--space-3)]"><FillSegments {count} /></td>
   <td class="type-data px-[var(--space-3)] whitespace-nowrap">{count}/4</td>

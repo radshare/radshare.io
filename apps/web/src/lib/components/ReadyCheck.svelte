@@ -34,7 +34,7 @@
     style="background: var(--surface); border-color: var(--border-strong); box-shadow: var(--shadow-overlay)"
   >
     <div class="flex items-center gap-[var(--space-2)]">
-      <TierBadge relicName={label.name} />
+      <TierBadge tier={label.tier} />
       <span class="type-heading font-mono">{label.name}</span>
       <span class="type-caption">{refinementLabel(label.refinement)}</span>
     </div>

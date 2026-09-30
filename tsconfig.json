@@ -25,7 +25,8 @@
       "@radshare/protocol/*": [
         "./packages/protocol/src/*"
       ]
-    }
+    },
+    "resolveJsonModule": true
   },
   "include": [
     "apps/server/**/*.ts",

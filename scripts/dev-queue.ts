@@ -9,10 +9,17 @@
  * cannot be pointed at a deployment.
  *
  *   bun scripts/dev-queue.ts                       three in one bucket
- *   bun scripts/dev-queue.ts --count 3 --relic "Axi A2" --refinement radiant
+ *   bun scripts/dev-queue.ts --count 3 --relic "Axi A1" --refinement radiant
  *
  * Leave it running. Ctrl-C releases everyone.
  */
+
+import {
+  findRelicByName,
+  relicBucketKey,
+  searchRelics,
+  type Refinement,
+} from "@radshare/protocol";
 
 const args = new Map<string, string>();
 for (let i = 2; i < Bun.argv.length; i += 2) {
@@ -28,9 +35,17 @@ if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
 }
 
 const count = Number(args.get("count") ?? 3);
-const relic = args.get("relic") ?? "Axi A2";
+const wanted = args.get("relic") ?? "Axi A1";
 const refinement = args.get("refinement") ?? "radiant";
-const bucketKey = `${relic}:${refinement}`;
+
+const relic = findRelicByName(wanted);
+if (!relic) {
+  const near = searchRelics(wanted, 5).map((r) => r.name);
+  console.error(`no relic named "${wanted}".`);
+  if (near.length > 0) console.error(`did you mean: ${near.join(", ")}`);
+  process.exit(1);
+}
+const bucketKey = relicBucketKey(relic.id, refinement as Refinement);
 
 const sockets: WebSocket[] = [];
 
@@ -55,7 +70,7 @@ for (let i = 0; i < count; i += 1) {
 
   ws.addEventListener("open", () => {
     ws.send(JSON.stringify({ type: "queue.join", selection: [bucketKey] }));
-    console.log(`${ign} queued for ${relic} ${refinement}`);
+    console.log(`${ign} queued for ${relic.name} ${refinement}`);
   });
   ws.addEventListener("message", (e) => {
     const msg = JSON.parse(String(e.data)) as { type: string; code?: string };

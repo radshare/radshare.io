@@ -1,5 +1,6 @@
 <script lang="ts">
   import BucketRow from "./BucketRow.svelte";
+  import type { RelicTier } from "@radshare/protocol";
 
   /**
    * A real <table> with <th scope="col">, not a grid of divs. The board is
@@ -11,6 +12,7 @@
   type Row = {
     bucketKey: string;
     relicName: string;
+    tier: RelicTier | null;
     refinement: string;
     count: number;
     waitedMs: number;
