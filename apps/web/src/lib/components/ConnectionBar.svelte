@@ -1,11 +1,7 @@
 <script lang="ts">
   import type { ConnectionState } from "$lib/boardState.ts";
 
-  /**
-   * The board must visibly disown its counts the moment the socket is gone.
-   * An undimmed board during a dropped connection is the app lying about the
-   * only thing it promises, so this bar is mandatory rather than a nicety.
-   */
+  /** The board must visibly disown its counts the moment the socket is gone. */
   let {
     connection,
     retryAt,

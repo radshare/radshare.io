@@ -4,11 +4,9 @@
   import type { RelicTier } from "@radshare/protocol";
 
   /**
-   * One (relic, refinement) line. 44px, which doubles as the minimum touch
-   * target so there is no phone-specific row metric.
-   *
-   * A real <tr>: a screen reader should read "Axi G9, Radiant, 3 of 4, waiting
-   * 12 minutes" from this.
+   * One (relic, refinement) line. 44px doubles as the minimum touch target, so
+   * there is no phone-specific row metric. A screen reader should read
+   * "Axi G9, Radiant, 3 of 4, waiting 12 minutes" from this.
    */
   let {
     relicName,

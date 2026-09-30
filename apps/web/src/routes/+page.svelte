@@ -14,11 +14,7 @@
 
   let { data } = $props();
 
-  /**
-   * One ticking clock for every countdown on the page, rather than a timer per
-   * component. A board updating every second must not become a board with
-   * thirty independent intervals.
-   */
+  /** One clock for every countdown, rather than thirty independent intervals. */
   let now = $state(Date.now());
   let ticker: ReturnType<typeof setInterval>;
 
@@ -31,11 +27,8 @@
   });
 
   /**
-   * Fires the cues once per gate, on the transition into one.
-   *
-   * Keyed on gateId rather than on truthiness: a `ready.state` update while
-   * the popup is open would otherwise re-strike the gong every time somebody
-   * else confirmed.
+   * Keyed on gateId, not truthiness: otherwise a `ready.state` update restrikes
+   * the gong every time somebody else confirms.
    */
   let announced = $state<string | null>(null);
   $effect(() => {
@@ -56,9 +49,8 @@
   let client = $derived(socket.state);
 
   /**
-   * Before the socket has said anything, the SERVER-RENDERED board is the
-   * truth. After it connects, the live board takes over. There is never a
-   * moment with nothing on screen and never a moment showing invented rows.
+   * The server-rendered board until the socket says otherwise. Never a moment
+   * with nothing on screen, and never one showing invented rows.
    */
   let rows = $derived(
     client.board.at > 0 || client.board.rows.length > 0

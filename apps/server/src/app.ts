@@ -1,15 +1,9 @@
 /**
- * The HTTP surface.
+ * The HTTP surface. One origin serves the client and terminates the socket, so
+ * there is no CORS story and no second hostname.
  *
- * One origin serves the client and terminates the WebSocket, so there is no
- * CORS story and no second hostname to keep in sync.
- *
- * `GET /api/board` is the ANONYMOUS half of the board and the only route that
- * matters before sign-in. A hundred anonymous readers cost one cached
- * projection rather than a hundred live connections, which is what lets one
- * pinned box survive its own launch post, and the same payload is rendered
- * into first paint so a visitor from Reddit sees a populated board before
- * JavaScript runs.
+ * `GET /api/board` is the anonymous half: one cached projection for however
+ * many readers, and the same payload server-rendered into first paint.
  */
 
 import { Hono } from "hono";
@@ -22,9 +16,9 @@ import { DEV_COOKIE } from "./auth.ts";
 
 /** Injected per request by the server entry; see `index.ts`. */
 export type AppBindings = {
-  /** The raw socket peer, used only as a no-proxy development fallback. */
+  /** No-proxy development fallback only. */
   peer: string | null;
-  /** Bun's upgrade hook. Returns false when the handshake cannot complete. */
+  /** False when the handshake cannot complete. */
   upgrade: (data: { accountId: string; connectionId: string; ip: string | null }) => boolean;
 };
 
@@ -48,10 +42,8 @@ export function createApp(deps: AppDeps) {
   app.get("/api/health", (c) => c.json({ ok: true }));
 
   /**
-   * The cached board. `Cache-Control` matches the in-process TTL so a CDN or a
-   * browser reuses exactly what the server would have reused, and `updatedAgo`
-   * carries the staleness explicitly — a ten-second board is honest as long as
-   * it says how old it is.
+   * `Cache-Control` matches the in-process TTL, so a CDN reuses exactly what
+   * the server would have. A ten-second board is honest while it says its age.
    */
   app.get("/api/board", (c) => {
     const board = deps.hub.cachedBoard();
@@ -61,20 +53,18 @@ export function createApp(deps: AppDeps) {
       rows: board.rows,
       hiddenCount: board.hiddenCount,
       updatedAgo: BoardCache.ageSeconds(board, at),
-      // Distinct accounts holding at least one entry — not sockets and not
-      // anonymous browsers, both of which would inflate it. Labelled "queued",
-      // never "online", and NEVER seeded.
+      // Distinct ACCOUNTS, not sockets or browsers, both of which would
+      // inflate it. Labelled "queued", never "online", and never seeded.
       playersQueued: deps.hub.playersQueued(),
     });
   });
 
   /**
-   * Sign in as anybody, and set the cookie a browser needs. DEV ONLY.
+   * Sign in as anybody. DEV ONLY.
    *
-   * A browser cannot put a header on a WebSocket handshake, so without a
-   * cookie the dev bypass works for scripts and not for the actual app. This
-   * also creates the account, because an in-game name is required before
-   * anyone can queue and there is no first-run screen yet.
+   * A browser cannot put a header on a WebSocket handshake, so the bypass needs
+   * a cookie. Creates the account too, since a name is required before queueing
+   * and there is no first-run screen yet.
    */
   if (deps.devAuth) {
     app.get("/api/dev-login", (c) => {
@@ -94,11 +84,8 @@ export function createApp(deps: AppDeps) {
   }
 
   /**
-   * Who am I, and have I finished signing up?
-   *
-   * `hasAccount` false means signed in with Clerk but no in-game name yet, so
-   * the client shows the first-run screen. There is no third state: an account
-   * row exists only once a name has been set.
+   * `hasAccount: false` means signed in but no in-game name yet, so the client
+   * shows the first-run screen. There is no third state.
    */
   app.get("/api/me", async (c) => {
     const accountId = await deps.authenticate(c.req.raw);
@@ -107,12 +94,8 @@ export function createApp(deps: AppDeps) {
   });
 
   /**
-   * Creates or updates the account. The in-game name is REQUIRED and this is
-   * the only path that writes one — a Clerk sign-in by itself creates nothing.
-   *
-   * Nothing here is verified against the game. DE exposes no player API, so the
-   * name is self-declared exactly like mastery rank; required and verified are
-   * different claims and only the first is made.
+   * The only path that writes an in-game name — a Clerk sign-in by itself
+   * creates nothing. Self-declared and unverified; DE exposes no player API.
    */
   app.post("/api/account", async (c) => {
     const accountId = await deps.authenticate(c.req.raw);
@@ -145,13 +128,9 @@ export function createApp(deps: AppDeps) {
   });
 
   /**
-   * The upgrade handshake.
-   *
-   * Both checks happen HERE rather than after the socket opens, so a connection
-   * flood never allocates socket state. The IP comes from `X-Forwarded-For`,
-   * because behind Caddy the socket peer is a pooled upstream connection shared
-   * between visitors — keying on it would count the whole userbase as one
-   * person and lock everyone out at the sixth connection.
+   * Both checks run HERE, before any socket state is allocated. The IP comes
+   * from `X-Forwarded-For` because Caddy's peer is a pooled connection shared
+   * between visitors — keying on it locks out everyone at the sixth.
    */
   app.get("/ws", async (c) => {
     const accountId = await deps.authenticate(c.req.raw);

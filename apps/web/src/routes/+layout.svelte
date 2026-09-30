@@ -10,10 +10,7 @@
       <a href="/" class="type-heading font-mono no-underline" style="color: var(--text)">
         radshare
       </a>
-      <!--
-        Utility language: orientation, status, action. Not mood, not brand.
-        No "Welcome to radshare.io!", no "Squad up, Tenno!".
-      -->
+      <!-- Utility language: orientation, status, action. Not mood, not brand. -->
       <span class="type-caption">Relic squad queue</span>
     </div>
   </header>

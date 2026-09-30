@@ -1,18 +1,12 @@
 /**
- * Renders the match gong to a WAV so it can be listened to.
+ * Renders the match gong to a WAV, for the one criterion no test can settle:
+ * whether it is distinguishable from Warframe audio.
  *
- *   bun scripts/preview-gong.ts            -> gong.wav
  *   bun scripts/preview-gong.ts --out x.wav --volume 0.6
  *
- * T15's verify criterion is "distinguishable from Warframe audio in a
- * side-by-side listen", which no test can settle. This renders the real
- * spectrum — it imports `GONG_PARTIALS` rather than restating it, so a preview
- * that sounds right is evidence about the thing that ships, not about a copy
- * of it that has quietly drifted.
- *
- * Play it next to a Warframe UI sound. If it reads as a chime or a notification
- * blip, the partials have drifted toward integer ratios and it will be
- * mistaken for the game.
+ * Imports `GONG_PARTIALS` rather than restating them, so this is evidence
+ * about the thing that ships. Play it next to a Warframe UI sound — if it
+ * reads as a chime, the ratios have drifted toward integers.
  */
 
 import {
@@ -36,8 +30,7 @@ const SAMPLE_RATE = 48_000;
 const frames = Math.ceil(SAMPLE_RATE * GONG_DURATION_SECONDS);
 const samples = new Float32Array(frames);
 
-// The strike transient: decaying noise through a rough bandpass, matching the
-// shape of the Web Audio graph closely enough to judge the character.
+// Decaying noise through a rough bandpass, close enough to judge character.
 const strikeFrames = Math.floor(SAMPLE_RATE * STRIKE_SECONDS);
 let bandpassState = 0;
 for (let i = 0; i < strikeFrames; i += 1) {
@@ -47,8 +40,7 @@ for (let i = 0; i < strikeFrames; i += 1) {
   samples[i]! += (noise - bandpassState) * envelope * 0.5;
 }
 
-// The partials. Exponential decay, because struck metal decays exponentially
-// and a linear fade audibly switches off.
+// Exponential decay: a linear fade audibly switches off.
 for (const partial of GONG_PARTIALS) {
   const hz = fundamental * partial.ratio * 2 ** (partial.detune / 1200);
   const omega = (2 * Math.PI * hz) / SAMPLE_RATE;
@@ -60,8 +52,7 @@ for (const partial of GONG_PARTIALS) {
   }
 }
 
-// Normalise, then apply the requested volume. Normalising first means the
-// preview at 0.6 is the same loudness the app produces at 0.6.
+// Normalise first, so a preview at 0.6 matches the app at 0.6.
 let peak = 0;
 for (const s of samples) peak = Math.max(peak, Math.abs(s));
 const scale = peak > 0 ? (0.89 / peak) * volume : 0;

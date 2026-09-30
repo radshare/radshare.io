@@ -1,14 +1,9 @@
 /**
- * The ready gate: the window between a bucket reaching four and a lobby
- * existing.
+ * The ready gate: between a bucket reaching four and a lobby existing.
  *
- * A bucket hitting four does NOT create a lobby. It opens a ready check. The
- * lobby exists only once all four have confirmed, which is why a no-show can no
- * longer cost three other people a dead room — there is no room to be dead.
- *
- * This is the product's ONLY enforcement mechanism. It replaced the rating
- * system outright: a gate acts in 60 seconds, applies itself, needs no
- * threshold, and works with four users as well as with forty thousand.
+ * A bucket hitting four opens a ready check, not a lobby — so a no-show cannot
+ * cost three other people a dead room. This is the product's only enforcement;
+ * it replaced the rating system, which needed volume before it meant anything.
  */
 
 import type { AccountId, BucketKey } from "./queue.ts";
@@ -19,24 +14,19 @@ export const READY_WINDOW_MS = 60_000;
 /** An opaque handle for one ready check. Carries no relic or lobby information. */
 export type GateId = string;
 
-/**
- * What one member looks like to the other three while the countdown runs.
- * `confirmed` is the only per-member fact on the wire — there is no readiness
- * history, no score, and nothing here outlives the gate.
- */
+/** `confirmed` is the only per-member fact on the wire, and it dies with the gate. */
 export type ReadyMemberView = {
   accountId: AccountId;
   confirmed: boolean;
 };
 
-/** server -> client, on queue pop. The emotional peak of the product. */
+/** server -> client, on queue pop. */
 export type ReadyCheckMessage = {
   type: "ready.check";
   gateId: GateId;
   bucketKey: BucketKey;
   members: ReadyMemberView[];
-  /** Absolute epoch ms. Sent as a deadline rather than a duration so a slow
-   *  delivery shortens the client's countdown instead of extending the gate. */
+  /** Absolute, so slow delivery shortens the countdown rather than the gate. */
   deadlineAt: number;
 };
 
@@ -53,11 +43,7 @@ export type ReadyConfirmMessage = {
   gateId: GateId;
 };
 
-/**
- * Why a gate ended without a lobby. The two audiences are treated differently
- * and BOTH are told — silently emptying someone's queue would be the worst
- * version of this.
- */
+/** Both audiences are told. Silently emptying someone's queue would be the worst version. */
 export type ReadyFailedReason =
   /** You are out of the queue entirely, every bucket. */
   | "you-did-not-confirm"

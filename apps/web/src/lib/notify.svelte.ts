@@ -1,9 +1,6 @@
 /**
- * The reactive shell over `Notifier`, and the browser wiring it needs.
- *
- * Thin by design: every decision lives in `notify.ts`, which is tested without
- * a browser. This file only supplies the real AudioContext, the real title and
- * the real Notification, and turns preference changes into runes.
+ * Runes over `Notifier`, plus the browser wiring: the real AudioContext, title
+ * and Notification. Every decision lives in `notify.ts`.
  */
 
 import { browser } from "$app/environment";
@@ -41,9 +38,8 @@ export class NotifyStore {
     });
     this.prefs = this.#notifier.prefs;
 
-    // The FIRST gesture anywhere unlocks audio. In practice that is typing in
-    // the relic search, long before any match -- which is exactly the point,
-    // because nobody clicks the tab while playing.
+    // In practice the relic search, long before any match -- which is the
+    // point, since nobody clicks the tab while playing.
     const unlock = () => {
       this.#notifier?.unlock();
       this.unlocked = this.#notifier?.unlocked ?? false;
@@ -52,7 +48,7 @@ export class NotifyStore {
       window.addEventListener(event, unlock, { once: true, passive: true });
     }
 
-    // Looking at the tab IS acknowledgement; the ready check is on screen.
+    // Looking at the tab IS acknowledgement -- the ready check is on screen.
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") this.#notifier?.clear();
     });

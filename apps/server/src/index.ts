@@ -1,10 +1,7 @@
 /**
- * The entry point. One Bun process, one box, by construction.
- *
- * Bun.serve terminates both the HTTP surface and the WebSocket on one origin.
- * Caddy sits in front for TLS, systemd restarts the process, SQLite is on the
- * local disk and litestream replicates it — there is no autoscaling to disable
- * and no rolling deploy that could fork the database.
+ * One Bun process, one box, by construction. Caddy in front for TLS, systemd
+ * restarting, SQLite on local disk with litestream replicating — no autoscaling
+ * to disable and no rolling deploy that could fork the database.
  */
 
 import { Database } from "bun:sqlite";
@@ -16,7 +13,7 @@ import { Hub } from "./hub.ts";
 import { ConnectionCap, MessageLimiter } from "./limits.ts";
 import { IDLE_TIMEOUT_S } from "./presence.ts";
 
-/** Ticked from a timer because the gate's own clock is injected, never read. */
+/** The gate's clock is injected, so expiry needs an external tick. */
 const SWEEP_INTERVAL_MS = 1_000;
 
 type SocketData = {
@@ -56,11 +53,8 @@ export function start(env = process.env) {
     hostname: env.HOST ?? "127.0.0.1",
 
     /**
-     * No ping interval is configured, deliberately. Bun pings at HALF
-     * `idleTimeout` — measured: an 8s timeout produced pongs at 4/8/12/16s —
-     * so setting both would be redundant and contradictory. There is no sweep
-     * and no `lastPongAt` bookkeeping: Bun evicts on timeout and fires `close`,
-     * and bucket eviction happens there.
+     * No ping interval, deliberately: Bun pings at HALF `idleTimeout` (measured
+     * — an 8s timeout gave pongs at 4/8/12/16s). No sweep, no `lastPongAt`.
      */
     websocket: {
       idleTimeout: IDLE_TIMEOUT_S,
@@ -72,7 +66,7 @@ export function start(env = process.env) {
 
       message(ws: Bun.ServerWebSocket<SocketData>, raw) {
         if (!limiter.allow(ws.data.connectionId, Date.now())) {
-          // Dropped WITH an explicit code, never silently.
+          // Explicit code, never a silent drop.
           ws.send(JSON.stringify({ type: "error", code: "RATE_LIMITED" }));
           return;
         }
@@ -82,11 +76,9 @@ export function start(env = process.env) {
       },
 
       /**
-       * Every close is treated the same. A deliberate tab close and a dead
-       * router both evict, once this is the account's last socket — the board
-       * must not vouch for someone who is not connected. Close codes remain
-       * distinguishable (1000/1001 clean, 1006 abnormal, unchanged through
-       * Caddy); the design simply no longer needs to branch on them.
+       * Every close is treated the same, once it is the account's last socket.
+       * Close codes remain distinguishable (1000/1001 clean, 1006 abnormal,
+       * unchanged through Caddy) — the design just does not need them.
        */
       close(ws: Bun.ServerWebSocket<SocketData>) {
         sockets.delete(ws.data.connectionId);
@@ -113,13 +105,9 @@ export function start(env = process.env) {
     server,
     hub,
     /**
-     * Force-closes live sockets rather than waiting for them to drain.
-     *
-     * A WebSocket held open by someone watching the board will never drain on
-     * its own, so a graceful stop would hang the deploy. Closing them is also
-     * the kinder behaviour: queue entries die with the socket anyway, and a
-     * client that sees a close reconnects in 500ms, where one left hanging on
-     * a dead process sits there showing counts that stopped being true.
+     * Force-closes live sockets. One held open by someone watching the board
+     * never drains, so a graceful stop hangs the deploy — and a client that
+     * sees the close reconnects in 500ms rather than showing stale counts.
      */
     stop() {
       clearInterval(sweep);

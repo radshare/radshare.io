@@ -1,17 +1,11 @@
 /**
- * The auth boundary.
+ * Clerk hosted sign-in, verified server-side with the official `@clerk/backend`.
+ * The community SvelteKit SDK is kept out of this path deliberately.
  *
- * Clerk hosted sign-in, verified SERVER-SIDE with the official `@clerk/backend`.
- * The community SvelteKit SDK is deliberately kept out of this path: the thing
- * that decides whether a socket may hold queue entries is worth keeping on a
- * first-party, maintained verifier.
+ * Steam is deferred: OpenID 2.0 rather than OAuth2, so Clerk cannot broker it.
  *
- * Steam is deferred. It is OpenID 2.0 rather than OAuth2, so Clerk cannot
- * broker it and it would need its own verifier — out of scope for v1.
- *
- * One function is the whole surface: a request in, an account id or null out.
- * Everything downstream takes an `AccountId` and knows nothing about Clerk,
- * which is what lets the hub tests run without a network.
+ * The whole surface is one function — a request in, an account id or null out —
+ * so everything downstream knows nothing about Clerk.
  */
 
 import { createClerkClient, type ClerkClient } from "@clerk/backend";
@@ -19,10 +13,7 @@ import type { AccountId } from "@radshare/protocol";
 
 export type Authenticator = (req: Request) => Promise<AccountId | null>;
 
-/**
- * Verifies the Clerk session on the request and returns the Clerk user id,
- * which IS the account id — there is no second identity table to keep in sync.
- */
+/** The Clerk user id IS the account id; there is no second identity table. */
 export function clerkAuthenticator(client: ClerkClient, authorizedParties?: string[]): Authenticator {
   return async (req) => {
     try {
@@ -32,9 +23,8 @@ export function clerkAuthenticator(client: ClerkClient, authorizedParties?: stri
       );
       if (!state.isAuthenticated) return null;
 
-      // Clerk can also authenticate machine tokens, which carry no user. Only a
-      // session token identifies a person, and only a person can hold a queue
-      // entry — so anything else is rejected rather than coerced.
+      // Clerk also authenticates machine tokens, which carry no user. Only a
+      // person can hold a queue entry, so anything else is rejected.
       const auth = state.toAuth();
       return "userId" in auth ? (auth.userId ?? null) : null;
     } catch {
@@ -58,22 +48,17 @@ export type AuthEnv = {
   RADSHARE_AUTHORIZED_PARTIES?: string;
 };
 
-/** The cookie a browser carries once `/api/dev-login` has been visited. */
+/** Set by `/api/dev-login`. */
 export const DEV_COOKIE = "radshare_dev";
 
 /**
- * Identifies the caller from a header, a cookie or a query parameter. LOCAL
- * DEVELOPMENT ONLY.
+ * LOCAL DEVELOPMENT ONLY. Header, query parameter, then cookie.
  *
- * Three sources because the three callers differ. A script can set a header; a
- * BROWSER CANNOT — `new WebSocket(url)` takes no headers at all — so the
- * browser path needs a cookie, and the query parameter is how that cookie gets
- * set in the first place.
+ * Three sources because the callers differ: a script sets a header, a browser
+ * cannot — `new WebSocket(url)` takes none — so it needs a cookie, and the
+ * query parameter is how that cookie gets set.
  *
- * Gated twice on purpose — an explicit opt-in AND a non-production
- * environment — because a dev bypass that one variable enables is a dev bypass
- * that eventually ships. `buildAuthenticator` refuses to return this when
- * `NODE_ENV === "production"` no matter what else is set.
+ * Gated twice, because a bypass one variable enables eventually ships.
  */
 export function devAuthenticator(): Authenticator {
   return async (req) => {
@@ -96,16 +81,14 @@ function readCookie(header: string | null, name: string): string | null {
   return null;
 }
 
-/** True when the dev bypass is the active authenticator. */
+/** Whether the bypass is the active authenticator. */
 export function isDevAuth(env: AuthEnv): boolean {
   return env.NODE_ENV !== "production" && env.RADSHARE_DEV_AUTH === "1";
 }
 
 /**
- * Picks the authenticator and fails LOUDLY rather than falling back.
- *
- * A misconfigured production box must not start and quietly accept a header,
- * so a missing secret key throws at boot instead of degrading.
+ * Fails LOUDLY rather than degrading: a misconfigured production box must not
+ * start and quietly accept a header.
  */
 export function buildAuthenticator(env: AuthEnv): Authenticator {
   if (isDevAuth(env)) return devAuthenticator();

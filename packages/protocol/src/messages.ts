@@ -1,13 +1,9 @@
 /**
- * The wire.
+ * The wire. Closed unions both ways, so a client `switch` that misses a case
+ * fails the build rather than ignoring a frame.
  *
- * Both directions are CLOSED unions discriminated on `type`. The server cannot
- * emit a message this file does not name, and a client `switch` that misses a
- * case fails the build rather than silently ignoring a frame.
- *
- * Only authenticated accounts hold sockets. An anonymous visitor polls the
- * cached `GET /api/board` and is never a connection, so nothing here has an
- * unauthenticated shape.
+ * Only authenticated accounts hold sockets — anonymous visitors poll
+ * `GET /api/board` — so nothing here has an unauthenticated shape.
  */
 
 import type { BoardDelta, BoardSnapshot } from "./board.ts";
@@ -29,17 +25,15 @@ import type {
 } from "./ready.ts";
 
 /**
- * An idempotent SET operation carrying the user's full current selection, never
- * a diff. The server diffs it against what is held, preserves `enqueuedAt` for
- * unchanged buckets and timestamps only genuinely new ones — which is what
- * makes toggling a relic useless as a way to game the oldest-waiting tiebreak.
+ * An idempotent SET: the full selection, never a diff. Unchanged buckets keep
+ * their `enqueuedAt`, so toggling a relic cannot game the tiebreak.
  */
 export type QueueJoinMessage = {
   type: "queue.join";
   selection: BucketKey[];
 };
 
-/** Unambiguous by construction: it clears everything. */
+/** Clears everything. */
 export type QueueLeaveMessage = {
   type: "queue.leave";
 };
@@ -62,7 +56,7 @@ export type ClientMessage =
   | LobbyJoinByCodeMessage
   | LobbyLeaveMessage;
 
-/** Sent in the same pass as the fire, so an instant match never renders a board. */
+/** Same pass as the fire, so an instant match never renders a personal board. */
 export type MatchFoundMessage = {
   type: "match.found";
   lobbyId: LobbyId;
@@ -92,12 +86,9 @@ const CLIENT_TYPES: ReadonlySet<string> = new Set<ClientMessageType>([
 ]);
 
 /**
- * Parses one inbound frame.
- *
- * Returns null rather than throwing on anything malformed. A socket is a public
- * surface even when authenticated, and every field is checked before it reaches
- * the matcher — `selection` in particular, which would otherwise let a client
- * put arbitrary values into a bucket key.
+ * Null rather than a throw on anything malformed. A socket is a public surface
+ * even when authenticated, so every field is checked before it reaches the
+ * matcher.
  */
 export function parseClientMessage(raw: string): ClientMessage | null {
   let data: unknown;

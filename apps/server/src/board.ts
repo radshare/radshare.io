@@ -1,27 +1,14 @@
 /**
- * The board.
+ * The board. One surface, two modes, and the mode follows QUEUE STATE rather
+ * than authentication — so an unqueued user always has the global board and
+ * nobody ever faces an empty screen.
  *
- * ONE surface with two modes, and **the mode is a function of queue state, not
- * of authentication**. Unqueued you see the global board; queued you see your
- * own buckets; leaving the queue swaps back. That is what stops anyone ever
- * facing an empty screen — an unqueued user always has the global board — while
- * still giving the rare-relic user a view of just their own the instant they
- * commit.
+ *               | global                | your own buckets
+ *   anonymous   | cached GET, 10s       | n/a, cannot queue
+ *   signed in   | live over the socket  | live over the socket
  *
- * Content follows queue state. Transport follows authentication. Two axes:
- *
- *               | global board                  | your own buckets
- *   ------------|-------------------------------|------------------
- *   anonymous   | cached GET, 10s               | n/a, cannot queue
- *   signed in   | live over the socket          | live over the socket
- *
- * Signed-in users get the GLOBAL board live, not on the cache. Watching a
- * bucket reach 3/4 is what prompts someone to join it, and a ten-second delay
- * blunts the one mechanism that completes other people's squads.
- *
- * Synchronous and time-injected, like everything else here. A board is a pure
- * projection of the bucket map; nothing in this file owns state except the
- * per-client record of what was last sent.
+ * Signed-in users get the global board LIVE, not cached: watching a bucket
+ * reach 3/4 is what prompts someone to join it.
  */
 
 import {
@@ -50,13 +37,11 @@ export type { BoardDelta, BoardDeltaRow, BoardMode, BoardRow, BoardSnapshot };
 // ---------------------------------------------------------------------------
 
 /**
- * Every non-empty bucket, fill descending then bucket age, capped.
+ * Fill descending, then bucket age, capped.
  *
- * A bucket's age is its oldest entry — buckets are created by their first
- * joiner and deleted on last removal, so that entry IS the bucket's birth. The
- * tiebreak rewards the bucket that has been waiting, which is the same
- * principle as the matcher's FIFO. `bucketKey` breaks the remaining tie so the
- * order is total and the board never reshuffles between identical states.
+ * A bucket's oldest entry IS its birth, since the first joiner creates it. The
+ * key breaks the remaining tie so the order is total and the board never
+ * reshuffles between identical states.
  */
 export function globalBoard(buckets: Buckets, limit = GLOBAL_BOARD_LIMIT): {
   rows: BoardRow[];
@@ -78,12 +63,7 @@ export function globalBoard(buckets: Buckets, limit = GLOBAL_BOARD_LIMIT): {
   };
 }
 
-/**
- * The buckets this account is in, in the same order the global board would use.
- *
- * Never empty while queued: queueing creates your bucket with you in it, so it
- * is never below `1/4` and `0/4` is not a state this system can be in.
- */
+/** Never below `1/4`: queueing creates the bucket with you already in it. */
 export function personalBoard(buckets: Buckets, accountId: AccountId): BoardRow[] {
   const mine: [BucketKey, number, number][] = [];
   for (const [key, bucket] of buckets) {
@@ -95,7 +75,7 @@ export function personalBoard(buckets: Buckets, accountId: AccountId): BoardRow[
   return mine.map(([bucketKey, count]) => ({ bucketKey, count }));
 }
 
-/** True once the account holds any entry. This is what picks the mode. */
+/** What picks the mode. */
 export function isQueued(buckets: Buckets, accountId: AccountId): boolean {
   for (const bucket of buckets.values()) {
     if (bucket.some((e) => e.accountId === accountId)) return true;
@@ -108,15 +88,10 @@ export function isQueued(buckets: Buckets, accountId: AccountId): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * What one signed-in socket is subscribed to.
+ * What one socket is subscribed to. `queue.join` / `queue.leave` swap it.
  *
- * `queue.join` and `queue.leave` swap the subscription rather than opening a
- * second one, and the swap is the visible confirmation that queueing worked —
- * the only feedback a user gets when no match fires immediately.
- *
- * The stream remembers which rows the client currently has so it can say
- * `inBoard: false` when one falls off the global board. Without that memory the
- * client cannot distinguish "unchanged" from "gone".
+ * Remembers which rows the client holds, so it can say `inBoard: false` when
+ * one falls off — otherwise the client cannot tell "unchanged" from "gone".
  */
 export class BoardStream {
   #mode: BoardMode = "global";
@@ -132,11 +107,8 @@ export class BoardStream {
   }
 
   /**
-   * Full state, and the only message that sets the mode.
-   *
-   * The mode is read from the buckets rather than from a client claim, so a
-   * reconnect while queued lands in personal mode without the client having to
-   * know it was queued.
+   * Full state. The mode comes from the buckets, never from a client claim, so
+   * a reconnect while queued lands in personal mode unprompted.
    */
   snapshot(buckets: Buckets, now: number): BoardSnapshot {
     const mine = personalBoard(buckets, this.accountId);
@@ -166,19 +138,11 @@ export class BoardStream {
   }
 
   /**
-   * The message to send after a change: a DELTA normally, a SNAPSHOT when the
-   * mode flipped.
+   * A DELTA normally, a SNAPSHOT when the mode flipped.
    *
-   * A mode change is a full replacement — global rows and your own rows are
-   * different sets, and no sequence of per-row deltas expresses "throw the
-   * board away and render this instead". Queueing is exactly that change, and
-   * it is also the only confirmation the user gets that queueing worked when no
-   * match fires, so the swap has to be unmistakable on the wire.
-   *
-   * An earlier version only set the mode in `snapshot()`. Deltas then kept
-   * arriving in the OLD mode, so hitting Queue left the user staring at the
-   * global board with their own bucket somewhere in it. The mode is now derived
-   * on every update, from the buckets, in one place.
+   * Global rows and your own rows are different sets, and no sequence of
+   * per-row deltas says "replace the board". An earlier version set the mode
+   * only in `snapshot()`, so hitting Queue left the user on the global board.
    */
   update(buckets: Buckets, now: number): BoardSnapshot | BoardDelta {
     const queued = isQueued(buckets, this.accountId);
@@ -188,13 +152,8 @@ export class BoardStream {
   }
 
   /**
-   * What changed since the last message on THIS stream, within the current
-   * mode.
-   *
-   * Recomputes the projection rather than trusting a list of touched keys: one
-   * bucket growing can push another off the bottom of the top 60, and that
-   * second bucket was never "touched". At board scale the sort is cheap and
-   * being right is worth more than being clever.
+   * Recomputes the projection rather than trusting touched keys: one bucket
+   * growing pushes another off the bottom, and that one was never touched.
    */
   delta(buckets: Buckets): BoardDelta {
     if (this.#mode === "personal") {
@@ -224,16 +183,10 @@ export class BoardStream {
 // ---------------------------------------------------------------------------
 
 /**
- * `GET /api/board`, on a 10-second cache.
+ * `GET /api/board`, on a 10-second cache: a hundred anonymous readers cost one
+ * projection, and the same payload is server-rendered into first paint.
  *
- * A hundred anonymous readers cost one cached projection rather than a hundred
- * live connections, and the same payload is server-rendered into first paint so
- * a visitor from Reddit sees a populated board before JavaScript runs. A
- * ten-second board is still honest: the row carries `updated Ns ago`, which is
- * what `at` is for.
- *
- * Anonymous viewers never hold a socket, so there is no `you` here — they
- * cannot queue and have no buckets of their own.
+ * Honest because `at` carries its age. No `you` field — they cannot queue.
  */
 export type CachedBoard = {
   rows: BoardRow[];
@@ -253,7 +206,7 @@ export class BoardCache {
     return this.#cached;
   }
 
-  /** Age in seconds, for the `updated Ns ago` the row carries. */
+  /** For the `updated Ns ago` the row carries. */
   static ageSeconds(board: CachedBoard, now: number): number {
     return Math.max(0, Math.floor((now - board.at) / 1000));
   }

@@ -1,13 +1,12 @@
 /**
- * Board shapes on the wire.
+ * Board shapes on the wire. The projections live in `apps/server/src/board.ts`.
  *
- * The PROJECTIONS live in `apps/server/src/board.ts` — this file is only the
- * vocabulary both ends share. A board is one surface with two modes, and the
- * mode is a function of queue state rather than of authentication.
+ * One surface, two modes, and the mode follows queue state rather than auth.
  */
 
 import type { BucketKey } from "./queue.ts";
 
+/** Beyond the top 60 the page is a wall of `1/4` commons. */
 export const GLOBAL_BOARD_LIMIT = 60;
 
 /** Seconds the anonymous payload is reused. The row carries `updated Ns ago`. */
@@ -24,21 +23,14 @@ export type BoardSnapshot = {
   type: "board.snapshot";
   mode: BoardMode;
   rows: BoardRow[];
-  /**
-   * Non-empty buckets below the cap. Present on the global stream only — it is
-   * how the board says "and 214 more" without shipping 214 rows.
-   */
+  /** Non-empty buckets below the cap. Global stream only. */
   hiddenCount?: number;
   /**
-   * The viewer's OWN buckets, sent on every snapshot regardless of mode.
+   * The viewer's own buckets, on EVERY snapshot regardless of mode.
    *
-   * This is what makes the mode correct by construction on every connect path.
-   * Queue entries are account-keyed and survive a socket swap, so after a
-   * refresh, a second tab, or a phone opened beside the desktop, a new socket
-   * arrives with live queue entries while the client knows nothing about them
-   * and would render the global board. Re-sending `queue.join` from
-   * `localStorage` would fix the display and silently reset `enqueuedAt`,
-   * costing the user their place in line on every refresh. One field avoids it.
+   * Without it a second tab or a phone opened beside the desktop arrives with
+   * live queue entries and renders the global board. Fixing that by re-sending
+   * `queue.join` would silently reset `enqueuedAt`.
    */
   you: { buckets: BoardRow[] };
   /** Epoch ms the projection was taken, so the client can render `updated Ns ago`. */
@@ -49,11 +41,8 @@ export type BoardDeltaRow = {
   bucketKey: BucketKey;
   count: number;
   /**
-   * False means the row should be REMOVED: the bucket emptied, or it fell out
-   * of the top 60. Without it the client renders a stale row forever.
-   *
-   * Always true on the own-buckets stream, where every delta concerns a bucket
-   * you are in.
+   * False means REMOVE the row — emptied, or fell out of the top 60. Without it
+   * the client renders a stale row forever. Always true on the personal stream.
    */
   inBoard: boolean;
 };

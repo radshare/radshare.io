@@ -3,40 +3,30 @@
  *
  *   bun scripts/vendor-relics.ts
  *
- * The result is CHECKED IN. A build that reaches out to GitHub is a build that
- * fails when GitHub does, and a relic list that changes under you between
- * deploys is a bucket key that changes under you between deploys.
+ * CHECKED IN: a relic list that changes between deploys is a bucket key that
+ * changes between deploys.
  *
- * Three things this has to reconcile, all discovered from the data rather than
- * assumed:
+ * Three things the data turned out to be:
  *
- * 1. WFCD HAS NO REFINEMENT-INDEPENDENT RELIC. Every entry is one (relic,
- *    refinement) pair, with the refinement baked into both the name ("Axi A1
- *    Radiant") and the uniqueName (…ESilver / …EGold / …EBronze / …EPlatinum).
- *    Our `RelicId` is the base — the uniqueName with that suffix removed — and
- *    the refinement is ours. Deriving it any other way would produce ids like
- *    `T4VoidProjectionEBronze:radiant`, which says "Intact, radiant".
+ * 1. NO REFINEMENT-INDEPENDENT RELIC. Every entry is one (relic, refinement)
+ *    pair, with the refinement in the name and the uniqueName. `RelicId` is
+ *    the base; deriving it otherwise gives `…EBronze:radiant`, i.e. "Intact,
+ *    radiant".
  *
- * 2. TWO RELICS CAN SHARE A DISPLAY NAME. `Lith G12` exists twice
- *    (SevagothPrimeD and SevagothPrimeE) with byte-identical reward tables — a
- *    WFCD artifact. This matters more than it looks: a player only ever knows
- *    the printed name, so two people each holding "Lith G12" must land in the
- *    SAME bucket. Keeping both ids would leave them queued forever, side by
- *    side, never matching. They are merged onto one canonical id and the
- *    alias is recorded rather than dropped.
+ * 2. TWO RELICS SHARE A DISPLAY NAME. `Lith G12` exists twice with identical
+ *    reward tables. A player only knows the printed name, so both must land in
+ *    the same bucket — otherwise two holders queue side by side forever.
  *
- * 3. Eight entries are generic placeholders ("Axi Relic", "Void Relic") with
- *    no refinement. They are not relics anyone holds, and they are skipped.
+ * 3. Eight entries are placeholders ("Axi Relic") with no refinement. Skipped.
  */
 
 const SOURCE =
   "https://raw.githubusercontent.com/WFCD/warframe-items/master/data/json/Relics.json";
 
-/** Every relic uniqueName begins with this. It distinguishes nothing, so it is
- *  stripped from the id and recorded here so the original is recoverable. */
+/** Shared by every relic, so it distinguishes nothing. Recorded, not lost. */
 const PREFIX = "/Lotus/Types/Game/Projections/";
 
-/** WFCD's suffix for each refinement. Their vocabulary, not ours. */
+/** Their vocabulary, not ours. */
 const SUFFIXES: Record<string, string> = {
   Bronze: "intact",
   Silver: "exceptional",
@@ -56,9 +46,9 @@ type VendoredRelic = {
   id: string;
   name: string;
   tier: string;
-  /** The wedge: rare and vaulted relics are what recruiting chat cannot fill. */
+  /** The wedge: what recruiting chat cannot fill. */
   vaulted: boolean;
-  /** Other WFCD ids that print the same name. Empty for all but one relic. */
+  /** Empty for all but one relic. */
   aliases?: string[];
 };
 
@@ -100,8 +90,8 @@ for (const entry of raw) {
   const existing = byName.get(name);
   if (existing) {
     existing.ids.add(id);
-    // Vaulted if ANY spelling of it is. Understating availability would send
-    // someone to recruiting chat for a relic this app could have filled.
+    // Understating availability sends someone to recruiting chat for a relic
+    // this app could have filled.
     existing.vaulted = existing.vaulted && (entry.vaulted ?? false);
   } else {
     byName.set(name, { ids: new Set([id]), vaulted: entry.vaulted ?? false, tier });
@@ -112,8 +102,8 @@ const relics: VendoredRelic[] = [];
 let merged = 0;
 
 for (const [name, info] of byName) {
-  // Canonical id is the lexicographically first, so regenerating the file
-  // cannot silently move a bucket key from one spelling to the other.
+  // Lexicographically first, so regenerating cannot silently move a bucket
+  // key from one spelling to the other.
   const ids = [...info.ids].sort();
   const [canonical, ...aliases] = ids;
   if (aliases.length > 0) merged += 1;

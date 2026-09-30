@@ -1,14 +1,9 @@
 /**
- * Durable state.
+ * Durable state. `bun:sqlite` is synchronous, so the lobby layer reads like the
+ * matcher and the tests run the REAL schema against `:memory:` rather than a
+ * fake that cannot reproduce a race.
  *
- * `bun:sqlite` is SYNCHRONOUS, which is why the lobby layer reads like the
- * matcher rather than like a database client: there is no connection pool, no
- * second service and no `await` anywhere in here. That is also what lets the
- * tests run against `:memory:` and still exercise the real schema and the real
- * constraints, rather than a hand-rolled fake that cannot reproduce a race.
- *
- * Queue state is NOT here. Buckets are in-memory and die with the socket — that
- * is the whole premise. Only post-match state is durable.
+ * Queue state is not here — buckets die with the socket. Only post-match state.
  */
 
 import { Database } from "bun:sqlite";
@@ -16,12 +11,9 @@ import { Database } from "bun:sqlite";
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS accounts (
   account_id    TEXT PRIMARY KEY,
-  -- REQUIRED, and never blank. Self-declared and unverified -- DE exposes no
-  -- player API -- but an account does not exist without one. The whole product
-  -- ends in a host typing someone's name into Warframe, so an account with no
-  -- name is an account that cannot be invited, and every screen downstream
-  -- would need a branch for a case that must not happen. Enforced here rather
-  -- than in a form, so no code path can create one.
+  -- REQUIRED and never blank, though unverified. The product ends in a host
+  -- typing this into Warframe, so an account without one cannot be invited.
+  -- Enforced here rather than in a form, so no code path can skip it.
   ign           TEXT NOT NULL CHECK (length(trim(ign)) > 0),
   platform      TEXT,
   mastery_rank  INTEGER,
@@ -32,9 +24,7 @@ CREATE TABLE IF NOT EXISTS lobbies (
   lobby_id        TEXT PRIMARY KEY,
   share_code      TEXT NOT NULL UNIQUE,
   bucket_key      TEXT NOT NULL,
-  -- Fixed at creation from the gate. There is no host handoff: if the host goes
-  -- AFK, members press Queue again. A live role transfer was rejected as
-  -- overcomplication.
+  -- Fixed at creation. No host handoff: an AFK host means Queue again.
   host_account_id TEXT NOT NULL,
   created_at      INTEGER NOT NULL,
   expires_at      INTEGER NOT NULL,
@@ -43,42 +33,36 @@ CREATE TABLE IF NOT EXISTS lobbies (
 
 CREATE TABLE IF NOT EXISTS lobby_members (
   lobby_id      TEXT NOT NULL REFERENCES lobbies(lobby_id),
-  -- The FK is what makes the IGN guarantee reach this table: a member row
-  -- cannot exist without an account row, and an account row cannot exist
-  -- without a name. The lobby view therefore joins rather than left-joins.
+  -- Carries the IGN guarantee into this table, so the lobby view can JOIN
+  -- rather than LEFT JOIN.
   account_id    TEXT NOT NULL REFERENCES accounts(account_id),
   slot          INTEGER NOT NULL CHECK (slot BETWEEN 0 AND 3),
-  -- Copied from the in-memory entry at fire time, because the bucket is gone by
-  -- the time this row is written and the wait time is worth keeping.
+  -- Copied at fire time: the bucket is gone by the time this row is written.
   enqueued_at   INTEGER NOT NULL,
   matched_at    INTEGER NOT NULL,
   left_at       INTEGER,
-  -- Unused until the Good squad button (T10). A nullable column costs nothing
-  -- now and saves a migration then.
+  -- Unused until the Good squad button. Cheaper than a migration later.
   good_squad_at INTEGER,
   PRIMARY KEY (lobby_id, account_id)
 ) STRICT;
 
 -- CAPACITY IS ENFORCED HERE, NOT IN APPLICATION LOGIC.
 --
--- "Read the member count, then insert" is a race: two people entering the same
--- code for a 3/4 lobby both read three and both insert, producing a
--- five-person squad that cannot open a relic together. With four slots and a
--- CHECK bounding them, a fifth insert must collide with an occupied slot and
--- fail at the database. The caller translates that into "This squad is already
--- full" rather than surfacing the constraint.
+-- "Read the count, then insert" is a race: two people entering the same code
+-- for a 3/4 lobby both read three and both insert, producing a five-person
+-- squad that cannot open a relic. With four bounded slots the fifth insert
+-- must collide and fail here.
 --
--- The index is PARTIAL on left_at so a vacated slot becomes joinable again,
--- which is what T18 needs. Nothing vacates a slot yet.
+-- PARTIAL on left_at so a vacated slot frees up. Nothing vacates one yet.
 CREATE UNIQUE INDEX IF NOT EXISTS lobby_members_slot
   ON lobby_members(lobby_id, slot) WHERE left_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS lobby_members_account
   ON lobby_members(account_id) WHERE left_at IS NULL;
 
--- Append-only, none of it read in a hot path, and a future event type costs no
--- migration. match_fired, ready_gate_failed and radshare_successful are event
--- TYPES, not tables. There is no ratings table; reputation does not exist here.
+-- Append-only. match_fired, ready_gate_failed and radshare_successful are
+-- event TYPES, not tables, so a new one costs no migration. There is no
+-- ratings table; reputation does not exist in this product.
 CREATE TABLE IF NOT EXISTS events (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   type       TEXT NOT NULL,
@@ -91,8 +75,7 @@ CREATE INDEX IF NOT EXISTS events_type_created ON events(type, created_at);
 
 export function openDatabase(path = ":memory:"): Database {
   const db = new Database(path);
-  // WAL is the difference between a reader blocking a writer and not, and the
-  // lobby read path runs on every reconnect.
+  // The lobby read path runs on every reconnect.
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec(SCHEMA);
@@ -101,7 +84,7 @@ export function openDatabase(path = ":memory:"): Database {
 
 export type EventType = "match_fired" | "ready_gate_failed" | "radshare_successful";
 
-/** Append-only. Nothing reads these yet, and that is the intended state. */
+/** Nothing reads these yet, and that is the intended state. */
 export function recordEvent(
   db: Database,
   type: EventType,

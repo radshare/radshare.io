@@ -1,11 +1,7 @@
 /**
- * Abuse limits. Synchronous and time-injected, like everything else that has to
- * be testable without a clock.
- *
- * The anonymous surface is a cached `GET /api/board`, so the cheapest flood is
- * absorbed by the cache rather than by socket state. What remains reachable by
- * socket is an authenticated account, which is a far narrower surface — but the
- * deployment is deliberately one box, so it still needs limits.
+ * Abuse limits. The anonymous surface is a cached endpoint, so the cheapest
+ * flood never reaches socket state — but the deployment is one box, so what
+ * remains still needs limits.
  */
 
 export const MAX_SOCKETS_PER_IP = 5;
@@ -13,22 +9,16 @@ export const MESSAGE_BURST = 20;
 export const MESSAGE_WINDOW_MS = 10_000;
 
 /**
- * Resolve the real client address.
+ * The real client address.
  *
- * VERIFIED against Caddy 2.11.4 (see T-spike): behind the proxy the socket peer
- * is `::ffff:127.0.0.1`, AND the peer port repeats across separate requests
- * because Caddy pools its upstream connection. The peer is therefore not merely
- * always-loopback — it is a single connection SHARED BETWEEN VISITORS. Keying a
- * per-IP cap on it would count the entire userbase as one person and lock
- * everyone out at the sixth connection.
+ * VERIFIED on Caddy 2.11.4: the peer is `::ffff:127.0.0.1` AND its port repeats
+ * across requests, because Caddy pools its upstream connection — the peer is
+ * one connection SHARED BETWEEN VISITORS. Keying a per-IP cap on it locks out
+ * the whole userbase at the sixth connection.
  *
- * Caddy REPLACES `X-Forwarded-For` rather than appending, so a client forging
- * the header has it discarded. That safety is a property of the default config:
- * adding `trusted_proxies` to the Caddyfile makes Caddy append and trust what
- * the client sent. We take the LAST value regardless, which is the entry the
- * nearest proxy added and is therefore the correct choice under both configs.
- *
- * `peerFallback` is for local development with no proxy in front.
+ * Caddy replaces `X-Forwarded-For`, so forged values are discarded; adding
+ * `trusted_proxies` changes that. We take the LAST value, which is correct
+ * under both configs.
  */
 export function clientIp(headers: Headers, peerFallback: string | null): string | null {
   const xff = headers.get("x-forwarded-for");
@@ -40,7 +30,7 @@ export function clientIp(headers: Headers, peerFallback: string | null): string 
   return peerFallback ? normalizeIp(peerFallback) : null;
 }
 
-/** Strips an IPv6-mapped IPv4 prefix and any port, so one address has one spelling. */
+/** One address, one spelling. */
 export function normalizeIp(raw: string): string {
   let ip = raw.trim();
 
@@ -49,10 +39,9 @@ export function normalizeIp(raw: string): string {
   if (bracket?.[1]) ip = bracket[1];
 
   // ::ffff:127.0.0.1:59807 -> 127.0.0.1:59807
-  // Must happen BEFORE the port strip: the mapped prefix contributes colons, so
-  // a naive "does it look like host:port" test misreads the whole string. Get
-  // this order wrong and every request from one client keys on its ephemeral
-  // port, which means the cap silently never fires.
+  // BEFORE the port strip: the mapped prefix contributes colons, so a host:port
+  // test misreads the string and every request keys on its ephemeral port --
+  // which means the cap silently never fires.
   const mapped = /^::ffff:(.+)$/i.exec(ip);
   if (mapped?.[1]) ip = mapped[1];
 
@@ -62,10 +51,7 @@ export function normalizeIp(raw: string): string {
   return ip;
 }
 
-/**
- * Concurrent sockets per address. Checked at the UPGRADE handshake rather than
- * after, so a connection flood never allocates socket state.
- */
+/** Checked at the UPGRADE handshake, so a flood never allocates socket state. */
 export class ConnectionCap {
   #byIp = new Map<string, Set<string>>();
 
@@ -94,10 +80,7 @@ export class ConnectionCap {
   }
 }
 
-/**
- * Per-socket message allowance. Over-limit messages are dropped with an
- * explicit `RATE_LIMITED` error, never silently.
- */
+/** Over-limit messages are dropped with an explicit code, never silently. */
 export class MessageLimiter {
   #state = new Map<string, { tokens: number; lastRefill: number }>();
 

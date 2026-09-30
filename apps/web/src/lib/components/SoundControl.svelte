@@ -2,15 +2,11 @@
   import type { NotifyPrefs } from "$lib/notify.ts";
 
   /**
-   * Mute and volume for the match gong.
+   * Beside the board rather than in a settings page: an unmuteable sound is how
+   * a tool gets closed permanently, and someone startled by it should not hunt.
    *
-   * An unmuteable sound is how a tool gets closed permanently, so this is not
-   * buried in a settings page — it sits beside the board where someone
-   * startled by the sound can reach it without hunting.
-   *
-   * Preview matters more than it looks: the gong fires once, when the user is
-   * not looking, and there is no other way to find out what volume 0.3 sounds
-   * like before trusting it to wake you.
+   * Preview earns its place — the gong fires once, when you are not looking, so
+   * there is no other way to learn what 0.3 sounds like before trusting it.
    */
   let {
     prefs,

@@ -1,19 +1,13 @@
 /**
- * The matcher. This is the load-bearing piece and it is deliberately dull.
+ * The matcher — the load-bearing piece, deliberately dull.
  *
- * INVARIANT: every function here is SYNCHRONOUS and contains zero `await`s.
- * Nothing external is in scope — no clock, no socket, no database. Time is a
- * parameter. That is what makes the ordering tests exact instead of
- * timing-dependent, and it is what stops a stray database call opening a gap in
- * the middle of an eviction. `matcher.test.ts` asserts the return is not a
- * Promise; if you find yourself wanting `await` in this file, the call belongs
- * in the caller.
+ * INVARIANT: every function here is synchronous with zero `await`s, and no
+ * clock, socket or database in scope. That keeps ordering tests exact and stops
+ * a stray call opening a gap mid-eviction. If you want `await` here, the call
+ * belongs in the caller.
  *
- *   planMatch(buckets, request, now) -> PlanResult     a join
- *   planRestore(buckets, placements) -> Plan           putting evictions back
- *
- * Both may fire. Restoring is a join-shaped operation: entries going back into
- * a bucket can complete it, so it has to be able to produce a ready check too.
+ * Restoring is join-shaped: entries going back can complete a bucket, so it
+ * fires too.
  */
 
 import {
@@ -32,26 +26,20 @@ export type Delta = { bucketKey: BucketKey; count: number };
 /** Where an entry was, so it can go back to exactly the same place. */
 export type EvictedPlacement = { bucketKey: BucketKey; entry: Entry };
 
-/**
- * A bucket reaching four does NOT create a lobby. It opens a ready check, and
- * the lobby exists only once all four confirm.
- */
+/** A bucket reaching four opens a ready check, not a lobby. */
 export type ReadyCheck = {
   bucketKey: BucketKey;
-  /** Exactly SQUAD_SIZE, FIFO order (oldest first). */
+  /** Exactly SQUAD_SIZE, oldest first. */
   members: Entry[];
-  /** The longest waiter. Deterministic, already tracked, rewards the wait. */
+  /** The longest waiter: deterministic, already tracked, rewards the wait. */
   hostAccountId: AccountId;
 };
 
 export type Plan = {
-  /** Every bucket whose count changed. `count: 0` means the bucket was deleted. */
+  /** `count: 0` means the bucket was deleted. */
   deltas: Delta[];
   readyCheck: ReadyCheck | null;
-  /**
-   * What the fire removed, if anything. The caller keeps this so it can put
-   * people back when the ready gate fails or a lobby insert fails.
-   */
+  /** Kept so the caller can restore on a failed gate or a failed lobby write. */
   evicted: EvictedPlacement[];
 };
 
@@ -60,10 +48,8 @@ export type PlanResult = { ok: true; plan: Plan } | { ok: false; error: ErrorCod
 export type JoinRequest = {
   accountId: AccountId;
   /**
-   * The account's FULL current selection, not a diff. `queue.join` is an
-   * idempotent set operation: the server diffs against what is held, keeps
-   * `enqueuedAt` for unchanged buckets, and timestamps only genuinely new ones.
-   * That makes toggling a relic useless as a way to game the tiebreak.
+   * The FULL selection, not a diff. Unchanged buckets keep their `enqueuedAt`,
+   * so toggling a relic cannot game the tiebreak.
    */
   selection: BucketKey[];
 };
@@ -221,15 +207,12 @@ export function planMatch(buckets: Buckets, request: JoinRequest, now: number): 
 }
 
 /**
- * Puts evicted entries back with their ORIGINAL `enqueuedAt`, so a failed ready
- * gate or a failed lobby insert costs nobody their position.
+ * Puts evicted entries back with their ORIGINAL `enqueuedAt`.
  *
- * This is a function rather than an `undo()` closure on the plan deliberately.
- * A closure would capture the world as it was at fire time and run up to a
- * minute later, by which point other people have joined those buckets. Restoring
- * blindly against a changed map can push a bucket past four. Re-evaluating here
- * means a restore that completes a bucket fires it, which is correct: those are
- * four real people waiting on the same relic.
+ * A function rather than an `undo()` closure: a closure captures the world at
+ * fire time and runs up to a minute later, and replaying it blindly can push a
+ * bucket past four. Re-evaluating means a restore that completes a bucket fires
+ * it, which is correct — those are four real people on the same relic.
  */
 export function planRestore(buckets: Buckets, placements: EvictedPlacement[]): Plan {
   const touched = new Set<BucketKey>();

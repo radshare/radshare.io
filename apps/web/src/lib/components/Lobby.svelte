@@ -7,14 +7,11 @@
   /**
    * Post-match. One job: get the HOST to whisper three people.
    *
-   * The asymmetry is carried by the DATA — a non-host's payload has no
-   * `whisper` field at all, so there is no way to render a copy button for
-   * them even by mistake. Four people each whispering three others is twelve
-   * whispers and colliding invites.
+   * The asymmetry is in the DATA — a non-host's payload has no `whisper` field
+   * at all, so the button cannot be rendered even by mistake.
    *
-   * There is no READY control here. Everyone on this screen already confirmed
-   * at the gate, and the happy path is that you read the names, alt-tab into
-   * Warframe and abandon the browser. That is never punished.
+   * No READY control: everyone here confirmed at the gate, and the happy path
+   * is that you read the names and abandon the browser.
    */
   let { lobby, onLeave }: { lobby: LobbyView; onLeave: () => void } = $props();
 
@@ -26,8 +23,7 @@
       copied = accountId;
       setTimeout(() => (copied = copied === accountId ? null : copied), 3000);
     } catch {
-      // Never a silent no-op: the whisper stays selectable in the row above.
-      copied = null;
+      copied = null; // the whisper stays selectable in the row above
     }
   }
 </script>
@@ -39,7 +35,7 @@
     <span class="type-caption">{refinementLabel(lobby.refinement)}</span>
   </div>
 
-  <!-- The second thing read, after the relic assignment. -->
+  <!-- Second thing read, after the relic assignment. -->
   <p
     class="type-body"
     style="background: var(--surface-raised); padding: var(--space-3) var(--space-4); margin: var(--space-4) 0"
@@ -67,14 +63,14 @@
           style="border-color: var(--border); {member.hasLeft ? 'opacity: 0.5' : ''}"
         >
           <td class="type-data px-[var(--space-3)]">
-            <!-- Selectable at every width: below 601px the name is read and typed. -->
+            <!-- Selectable at every width: below 601px it is read and typed. -->
             <span style="user-select: text">{member.ign}</span>
             {#if member.isYou}<span class="type-caption" style="color: var(--primary)"> YOU</span>{/if}
             {#if member.isHost}<span class="type-caption"> host</span>{/if}
             {#if member.hasLeft}<span class="type-caption"> left</span>{/if}
           </td>
           <td class="type-caption px-[var(--space-3)]">{member.platform ?? ""}</td>
-          <!-- Absent when unset. No placeholder: it is a courtesy signal, never a gate. -->
+          <!-- Absent when unset. A courtesy signal, never a gate. -->
           <td class="type-data px-[var(--space-3)]">{member.masteryRank ?? ""}</td>
           <td class="px-[var(--space-3)] text-right">
             {#if member.whisper}
@@ -101,16 +97,14 @@
     <span class="type-caption">
       Share code <span class="type-data" style="letter-spacing: 0.1em">{lobby.shareCode}</span>
     </span>
-    <!-- Always available, not only after someone leaves: an AFK host never
-         presses Leave, so a button scoped to that case would never appear in
-         the exact situation that needs it. -->
+    <!-- Always available: an AFK host never presses Leave, so a button scoped
+         to that case would never appear when it is needed. -->
     <button type="button" class="type-caption underline" onclick={onLeave}>Queue again</button>
   </div>
 </section>
 
 <style>
-  /* A phone's clipboard cannot reach Warframe -- the game is on the PC. Below
-     601px the names are read and typed instead. */
+  /* A phone's clipboard cannot reach Warframe -- the game is on the PC. */
   @media (max-width: 600px) {
     .copy-whisper {
       display: none;

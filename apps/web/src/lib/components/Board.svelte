@@ -3,11 +3,8 @@
   import type { RelicTier } from "@radshare/protocol";
 
   /**
-   * A real <table> with <th scope="col">, not a grid of divs. The board is
-   * tabular data and a screen reader should be able to read a full row.
-   *
-   * Two modes, one surface. The mode is a function of queue state, never of
-   * authentication, and there are no lens tabs and no toggle between them.
+   * A real <table>, not a grid of divs — this is tabular data and a screen
+   * reader should read a full row. Two modes, one surface, no toggle.
    */
   type Row = {
     bucketKey: string;
@@ -37,17 +34,11 @@
     {mode === "personal" ? "Your queue" : "Live queue board"}
   </h2>
 
-  <!--
-    Counts are explicitly disowned when the socket is gone. An undimmed board
-    during a dropped connection is the app lying about the only thing it
-    promises, so the dimming is mandatory rather than a nicety.
-  -->
+  <!-- An undimmed board during a dropped socket is the app lying about the
+       only thing it promises. Mandatory, not a nicety. -->
   <div style={stale ? "opacity: 0.6" : ""}>
     {#if rows.length === 0}
-      <!--
-        The honest empty state. NEVER seeded with fake presence — not a ghost
-        count, not a sample row, not a "typical activity" figure.
-      -->
+      <!-- Never seeded: no ghost count, no sample row, no "typical activity". -->
       <p class="type-caption" style="padding: var(--space-6) 0">
         Queues appear here as Tenno join. Be first. Be ready.
       </p>
@@ -78,10 +69,7 @@
     {/if}
   </div>
 
-  <!--
-    Polite and throttled. A board updating every few seconds must never fire an
-    assertive announcement.
-  -->
+  <!-- Polite: a board updating every few seconds must never be assertive. -->
   <div aria-live="polite" aria-atomic="false" class="sr-only">
     {rows.length} queues filling
   </div>

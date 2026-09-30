@@ -1,16 +1,10 @@
 /**
- * The ready gate store.
+ * The ready gate store. Same discipline as the matcher: synchronous,
+ * time-injected, opaque account ids. `expire(now)` is driven by the caller's
+ * timer, so no test sleeps through 60 seconds.
  *
- * Same discipline as the matcher: SYNCHRONOUS, time-injected, and holding
- * opaque account ids rather than sockets. `expire(now)` is called from a timer
- * in the caller, never from a clock in here, so the 60-second window is exact
- * in tests instead of something a test has to sleep through.
- *
- * What this file decides is who comes back and who does not. What it does NOT
- * do is touch buckets, write a row or send a frame — it returns the placements
- * to restore and the caller feeds them to `planRestore`. That keeps the
- * eviction/restore pair in one place (the matcher) and keeps the gate testable
- * without a database.
+ * Decides who comes back. Touches no buckets and writes no rows — it returns
+ * placements and the caller feeds them to `planRestore`.
  */
 
 import {
@@ -27,41 +21,36 @@ import type { EvictedPlacement, ReadyCheck } from "./matcher.ts";
 export type Gate = {
   gateId: GateId;
   bucketKey: BucketKey;
-  /** Exactly SQUAD_SIZE, FIFO order. */
+  /** Exactly SQUAD_SIZE, oldest first. */
   members: Entry[];
-  /** The longest waiter, chosen at fire time so it cannot shift mid-gate. */
+  /** Chosen at fire time, so it cannot shift mid-gate. */
   hostAccountId: AccountId;
   confirmed: Set<AccountId>;
   openedAt: number;
   deadlineAt: number;
   /**
-   * Where these four came from, across EVERY bucket they held — not just the
-   * one that popped. A fire evicts an account from all of its buckets, so this
-   * is the only record of a confirmer's position in the others.
+   * Across EVERY bucket they held, not just the one that popped — a fire evicts
+   * from all of them, so this is the only record of the others.
    */
   evicted: EvictedPlacement[];
 };
 
 export type ConfirmOutcome =
-  /** Unknown gate, or one that already ended. Confirming late is not an error. */
+  /** Unknown or already ended. Confirming late is not an error. */
   | { kind: "unknown" }
-  /** Not your gate. Should be unreachable; treated as a no-op rather than a throw. */
+  /** Should be unreachable. A no-op rather than a throw. */
   | { kind: "not-a-member" }
-  /** Recorded. Still waiting on others. `members` is the view to broadcast. */
   | { kind: "pending"; gate: Gate; members: ReadyMemberView[] }
   /** All four in. The caller creates the lobby; the gate is already closed. */
   | { kind: "complete"; gate: Gate };
 
-/**
- * A gate that ended without a lobby. Both audiences are named explicitly so no
- * caller can accidentally tell only one of them.
- */
+/** Both audiences are named, so no caller can tell only one of them. */
 export type GateFailure = {
   gate: Gate;
-  /** Back to their buckets, original `enqueuedAt`. Feed to `planRestore`. */
+  /** Feed to `planRestore`. */
   restore: EvictedPlacement[];
   confirmers: AccountId[];
-  /** Out of the queue entirely. Their placements are deliberately dropped. */
+  /** Out of the queue entirely — their placements are dropped. */
   nonConfirmers: AccountId[];
   reason: (accountId: AccountId) => ReadyFailedReason;
 };
@@ -72,10 +61,8 @@ const defaultNewId = (): GateId => `g${(counter += 1).toString(36)}`;
 export class ReadyGates {
   #gates = new Map<GateId, Gate>();
   /**
-   * An account is in at most one gate: a fire evicts it from every bucket, so
-   * it cannot be sitting in a second bucket waiting to pop. This index is what
-   * lets a disconnect find the gate in O(1), and `open` asserts the invariant
-   * rather than trusting it.
+   * An account is in at most one gate, since a fire evicts it everywhere.
+   * `open` asserts that rather than trusting it.
    */
   #byAccount = new Map<AccountId, GateId>();
 
@@ -107,7 +94,7 @@ export class ReadyGates {
     return gate;
   }
 
-  /** Idempotent. Pressing the button twice is not an error and not a second vote. */
+  /** Idempotent: a second press is not a second vote. */
   confirm(gateId: GateId, accountId: AccountId, now: number): ConfirmOutcome {
     const gate = this.#gates.get(gateId);
     if (!gate) return { kind: "unknown" };
@@ -124,14 +111,11 @@ export class ReadyGates {
   }
 
   /**
-   * Every gate whose deadline has passed, closed and reported.
-   *
-   * Non-confirmers are removed from the queue entirely — every bucket, not just
-   * the one that popped. Someone who missed a 60-second countdown carrying a
-   * gong, a title flip and a browser notification is not at their machine, and
-   * leaving them queued means the next three people hit the same dead end. The
-   * cost lands on the absent user as one click, because their selection is
-   * retained; the lenient alternative charges strangers who did nothing wrong.
+   * Non-confirmers leave the queue entirely — every bucket, not just the one
+   * that popped. Someone who missed a countdown carrying a gong, a title flip
+   * and a notification is not at their machine, and leaving them queued sends
+   * the next three people into the same dead end. Their selection is retained,
+   * so returning is one click.
    */
   expire(now: number): GateFailure[] {
     const failures: GateFailure[] = [];
@@ -144,11 +128,10 @@ export class ReadyGates {
   }
 
   /**
-   * A member's last socket closed mid-gate. The gate fails NOW rather than
-   * burning the remaining countdown: they cannot confirm, so the other three
-   * are only waiting to be told. The departed member counts as a non-confirmer
-   * even if they had already pressed the button — a lobby they are not
-   * connected to is the dead room the gate exists to prevent.
+   * Fails the gate NOW rather than burning the countdown: they cannot confirm,
+   * so the other three are only waiting to be told. They count as absent even
+   * if they had pressed the button — a lobby they are not connected to is the
+   * dead room the gate exists to prevent.
    */
   abandon(accountId: AccountId, _now: number): GateFailure | null {
     const gateId = this.#byAccount.get(accountId);

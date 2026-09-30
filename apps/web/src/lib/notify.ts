@@ -1,21 +1,15 @@
 /**
- * Reaching someone who is not looking at this tab.
+ * Reaching someone who is not looking at this tab. A match that fires silently
+ * is a gate that expires, which costs three other people their minute too.
  *
- * The ready gate gives four people sixty seconds, and the whole premise is
- * that they are in a fullscreen mission on the same machine. A match that
- * fires silently is a match that expires, and an expired gate costs three
- * other people their minute too. So this fires three cues at once, because
- * each fails differently:
+ * Three cues, because each fails differently:
  *
- * - **The gong** reaches someone in the game. Fails when the tab has never
- *   been clicked, because browsers refuse audio without a gesture.
- * - **The title flip** reaches someone scanning their tab strip. Never fails,
- *   never interrupts, and is the only one that works with audio blocked.
- * - **The Notification** reaches someone in another window entirely. Fails
- *   without permission, which is never requested on page load.
+ * - **Gong** — reaches someone in the game. Fails until the tab is clicked.
+ * - **Title flip** — reaches someone scanning tabs. Never fails, and is the
+ *   only one that works with audio blocked.
+ * - **Notification** — reaches another window. Fails without permission.
  *
- * Everything is injected — clock, storage, audio, title setter, notification
- * factory — so the whole thing is tested without a browser.
+ * Everything is injected, so all of it is tested without a browser.
  */
 
 import { clampVolume, strike, type AudioTarget } from "./audio/gong.ts";
@@ -28,13 +22,10 @@ export type NotifyPrefs = {
   volume: number;
 };
 
-/**
- * Loud enough to hear over a mission, quiet enough not to be the reason
- * someone mutes the tab forever.
- */
+/** Audible over a mission, not loud enough to get the tab muted forever. */
 export const DEFAULT_PREFS: NotifyPrefs = { muted: false, volume: 0.6 };
 
-/** How often the title alternates. Slow enough to read, fast enough to catch. */
+/** Slow enough to read, fast enough to catch. */
 export const TITLE_FLIP_MS = 1_000;
 
 export type PrefsStore = {
@@ -45,15 +36,13 @@ export type PrefsStore = {
 export type NotifierOptions = {
   baseTitle: string;
   setTitle: (title: string) => void;
-  /** Returns null when the browser has no Web Audio or refuses a context. */
+  /** Null when the browser has no Web Audio. */
   createAudio?: () => AudioTarget | null;
-  /** Resumes a suspended context. Browsers start them suspended. */
+  /** Browsers start contexts suspended. */
   resumeAudio?: (ctx: AudioTarget) => void;
   /**
-   * `"interrupted"` is included because iOS uses it — a phone call or another
-   * app taking audio leaves the context in a state that is neither running nor
-   * suspended, and treating it as running is how the gong silently stops
-   * working after someone takes a call.
+   * `"interrupted"` is iOS after a phone call. Treating it as running is how
+   * the gong silently stops for the rest of the session.
    */
   audioState?: (ctx: AudioTarget) => "running" | "suspended" | "closed" | "interrupted";
   storage?: PrefsStore;
@@ -87,16 +76,11 @@ export class Notifier {
   }
 
   /**
-   * Called from the FIRST user gesture anywhere on the page.
+   * From the FIRST gesture anywhere — in practice typing in the relic search,
+   * long before any match. The context is reused for the page's life, because
+   * recreating it per match would need a gesture nobody makes while playing.
    *
-   * Browsers refuse to start audio without one, and the page's first gesture
-   * is usually typing in the relic search — long before any match. The context
-   * is created once and reused for the life of the page, so a user who is
-   * silently re-queued after a reconnect still gets the ping; recreating it
-   * per match would need a fresh gesture each time, which is exactly the
-   * gesture nobody makes while playing.
-   *
-   * Idempotent: wiring it to every listener on the page is fine.
+   * Idempotent, so wiring it to every listener is fine.
    */
   unlock(): void {
     if (this.#unlocked) return;
@@ -111,10 +95,8 @@ export class Notifier {
   }
 
   /**
-   * Asks for notification permission. A GESTURE ONLY — never on page load.
-   *
-   * A permission prompt before anyone has seen the board is how a stranger
-   * from Reddit closes the tab, and a denied permission is permanent.
+   * GESTURE ONLY. A prompt before anyone has seen the board is how a stranger
+   * closes the tab, and a denial is permanent.
    */
   requestPermission(): void {
     if (this.#opts.notificationPermission?.() !== "default") return;
@@ -122,11 +104,8 @@ export class Notifier {
   }
 
   /**
-   * A match fired. Everything goes off at once.
-   *
-   * Deliberately not conditional on the tab being hidden. `visibilityState`
-   * says the tab is visible when it is behind a fullscreen game on another
-   * monitor — which is the exact case this exists for.
+   * Not conditional on the tab being hidden: `visibilityState` reports visible
+   * for a tab behind a fullscreen game, which is the case this exists for.
    */
   matchFound(relicName: string): void {
     this.#playGong();
@@ -134,7 +113,7 @@ export class Notifier {
     this.#showNotification(relicName);
   }
 
-  /** The user has seen it: gate confirmed, gate ended, or the tab was focused. */
+  /** Gate confirmed, gate ended, or the tab was focused. */
   clear(): void {
     this.#stopTitleFlip();
   }
@@ -149,7 +128,7 @@ export class Notifier {
     this.#writePrefs();
   }
 
-  /** Lets the settings control demo the sound at the current volume. */
+  /** For the settings control. */
   preview(): void {
     this.#playGong();
   }
@@ -160,9 +139,8 @@ export class Notifier {
     if (this.#prefs.muted || this.#prefs.volume === 0) return;
     if (!this.#ctx) return;
 
-    // A context can stop running again after unlock — backgrounding suspends
-    // it, and on iOS a phone call interrupts it. Checked at play time rather
-    // than trusted from unlock time, because unlock happened minutes ago.
+    // Checked at play time, not trusted from unlock: backgrounding suspends a
+    // context and iOS interrupts it, and unlock was minutes ago.
     const state = this.#opts.audioState?.(this.#ctx);
     if (state === "suspended" || state === "interrupted") {
       this.#opts.resumeAudio?.(this.#ctx);
@@ -170,8 +148,7 @@ export class Notifier {
     try {
       strike(this.#ctx, this.#prefs.volume);
     } catch {
-      // A failed sound must never take the ready check down with it. The title
-      // flip and the notification are still running.
+      // A failed cue must not take the ready check with it.
     }
   }
 
@@ -188,10 +165,8 @@ export class Notifier {
   }
 
   #stopTitleFlip(): void {
-    // Only restores the title if a flip was actually running. Writing the base
-    // title unconditionally would make every match start by setting the title
-    // to what it already is, and a second match would blink back to normal
-    // before alerting again.
+    // Only if a flip was running: otherwise a second match blinks back to
+    // normal before alerting again.
     const wasFlipping = this.#flipHandle !== null || this.#flipped;
     if (this.#flipHandle !== null) this.#clearTimer(this.#flipHandle);
     this.#flipHandle = null;
@@ -207,7 +182,7 @@ export class Notifier {
         `${relicName} — confirm within 60 seconds.`,
       );
     } catch {
-      // Same reasoning as the gong: a cue that fails is not a page that fails.
+      // A cue that fails is not a page that fails.
     }
   }
 
@@ -234,13 +209,12 @@ export class Notifier {
     try {
       this.#opts.storage?.write(this.#prefs);
     } catch {
-      // Preferences are a convenience. Losing them costs a setting; throwing
-      // here costs the mute button the user was trying to press.
+      // Losing a preference costs a setting; throwing costs the mute button.
     }
   }
 }
 
-/** The real browser store, guarded the same way the selection store is. */
+/** Guarded the same way the selection store is. */
 export function localPrefsStore(): PrefsStore {
   return {
     read() {

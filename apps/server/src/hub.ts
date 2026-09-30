@@ -1,20 +1,12 @@
 /**
- * The hub: where the queue, the ready gate, the lobby and the board meet.
+ * Where the queue, the ready gate, the lobby and the board meet — the one place
+ * an ordering mistake can strand a bucket, which is why the clock and the
+ * outbound sink are parameters and no socket object is ever in scope.
  *
- * Everything below this file is pure or synchronous and testable on its own.
- * This is the one place they are wired together, so it is the one place an
- * ordering mistake can strand a bucket — which is why it takes its clock and
- * its outbound sink as parameters and never touches a socket object.
- *
- * THE MATCH PASS IS SYNCHRONOUS AND CONTAINS ZERO `await`s. `planMatch`
- * evicts, snapshots and computes deltas in one go; the gate opens from its
- * result; only then does anything broadcast. `bun:sqlite` is synchronous too,
- * so even the lobby insert does not yield. Introducing an `await` between the
- * eviction and the gate is what leaves a bucket sitting at 4/4 forever.
- *
- * Connections are opaque string ids. An account may hold several — a desktop
- * and a phone are two clients sharing an account and nothing else — and is
- * evicted from its buckets only when the LAST one closes.
+ * THE MATCH PASS CONTAINS ZERO `await`s. `planMatch` evicts, snapshots and
+ * computes deltas in one go, the gate opens from its result, and only then does
+ * anything broadcast. An `await` between the eviction and the gate is what
+ * leaves a bucket at 4/4 forever.
  */
 
 import type { Database } from "bun:sqlite";
@@ -44,7 +36,7 @@ export type HubOptions = {
   relicName: RelicNames;
   send: Outbound;
   now?: () => number;
-  /** Non-null only when the relic list is loaded; unknown ids are rejected. */
+  /** Unknown relic ids are rejected before they can create a bucket. */
   knownRelic?: (relicId: string) => boolean;
 };
 
@@ -89,9 +81,8 @@ export class Hub {
     this.#byAccount.set(accountId, held);
     this.presence.connect(accountId, connectionId);
 
-    // The snapshot picks its own mode from the buckets, so a second device or a
-    // refresh lands in personal mode without the client claiming anything —
-    // and without re-sending `queue.join`, which would reset `enqueuedAt`.
+    // The snapshot picks its own mode, so a second device lands in personal
+    // mode without re-sending `queue.join` and resetting `enqueuedAt`.
     this.#send(connectionId, stream.snapshot(this.buckets, this.#now()));
 
     const lobbyId = this.lobbies.openLobbyFor(accountId, this.#now());
@@ -99,10 +90,8 @@ export class Hub {
   }
 
   /**
-   * ANY close evicts once it is the account's last socket. There is no grace
-   * window and no close-code branch: the board must not vouch for someone who
-   * is not connected, and a blip is already covered by the client re-queueing
-   * on reconnect.
+   * Any close evicts once it is the account's LAST socket. No grace window and
+   * no close-code branch — a blip is covered by the client's re-queue instead.
    */
   close(connectionId: ConnectionId): void {
     const conn = this.#connections.get(connectionId);
@@ -115,9 +104,7 @@ export class Hub {
 
     if (this.presence.disconnect(conn.accountId, connectionId).kind !== "evict") return;
 
-    // A member vanishing mid-gate fails it now rather than burning the
-    // countdown: they cannot confirm, so the other three are only waiting to
-    // be told.
+    // They cannot confirm, so the other three are only waiting to be told.
     const failure = this.gates.abandon(conn.accountId, this.#now());
     if (failure) this.#resolveFailure(failure);
 
@@ -152,8 +139,7 @@ export class Hub {
         return;
       }
       case "lobby.join_by_code":
-        // Group formation is deferred (T13) and needs a matcher change, not a
-        // route. Saying so is better than a route that half works.
+        // Deferred: group formation needs a matcher change, not a route.
         return this.#error(connectionId, "CODE_NOT_FOUND");
     }
   }
@@ -163,11 +149,8 @@ export class Hub {
       if (!this.#validBucketKey(key)) return this.#error(conn.connectionId, "MATCH_FAILED");
     }
 
-    // Checked HERE rather than at match time. An account with no row has no
-    // in-game name, so the host could never invite them — and discovering that
-    // when the lobby is written would fail a match that three other people had
-    // already confirmed. The cost belongs on the one person who has not
-    // finished signing up.
+    // Checked HERE, not at match time: discovering it when the lobby is
+    // written would fail a match three other people already confirmed.
     if (selection.length > 0 && !this.#hasAccount(conn.accountId)) {
       return this.#error(conn.connectionId, "IGN_REQUIRED");
     }
@@ -194,12 +177,9 @@ export class Hub {
         }
         return;
       case "complete": {
-        // All four are in. The lobby row is written and only then announced.
-        //
-        // If that write fails, everyone goes BACK — the gate is already closed
-        // by this point, so without the restore four people are out of every
-        // bucket they held with nothing to show for it. `evicted` was carried
-        // through the gate for exactly this.
+        // Written first, announced second. If the write fails everyone goes
+        // BACK: the gate is already closed, so without the restore four people
+        // are out of every bucket with nothing to show for it.
         let lobbyId: string;
         try {
           lobbyId = this.lobbies.create(outcome.gate, this.#now()).lobbyId;
@@ -226,12 +206,12 @@ export class Hub {
   // the ready gate
   // -------------------------------------------------------------------------
 
-  /** Drive from a timer. Sweeps every gate whose 60 seconds have run out. */
+  /** Driven by a timer. */
   expireGates(): void {
     for (const failure of this.gates.expire(this.#now())) this.#resolveFailure(failure);
   }
 
-  /** Drive from a timer. Dissolves lobbies past their two-hour ceiling. */
+  /** Driven by a timer. */
   expireLobbies(): void {
     for (const lobbyId of this.lobbies.expire(this.#now())) {
       this.#notifyLobby(lobbyId, { type: "lobby.closed", lobbyId });
@@ -239,13 +219,8 @@ export class Hub {
   }
 
   /**
-   * Both audiences are told, and neither is ever silently dropped.
-   *
-   * Confirmers go back to their buckets with their ORIGINAL `enqueuedAt` — they
-   * did nothing wrong. Non-confirmers are out of every bucket they held, not
-   * just the one that popped, because someone who missed a 60-second countdown
-   * carrying a gong and a title flip is not at their machine, and leaving them
-   * queued means the next three people hit the same dead end.
+   * Both audiences are told; neither is silently dropped. Confirmers keep their
+   * ORIGINAL `enqueuedAt`, non-confirmers leave every bucket they held.
    */
   #resolveFailure(failure: GateFailure): void {
     recordEvent(
@@ -267,8 +242,7 @@ export class Hub {
       });
     }
 
-    // Restoring can itself complete a bucket, and that is correct: those are
-    // four real people waiting on the same relic.
+    // A restore that completes a bucket fires it, which is correct.
     this.#broadcast(planRestore(this.buckets, failure.restore));
   }
 
@@ -277,13 +251,9 @@ export class Hub {
   // -------------------------------------------------------------------------
 
   /**
-   * Every connected client is re-projected after a change.
-   *
-   * Each stream recomputes its own board rather than receiving a shared delta,
-   * because the two modes see different things and a bucket leaving the global
-   * top 60 is not a change anyone "touched". Coalescing these into one flush
-   * per 100ms tick is T3d; the shapes here already carry an array, so that is a
-   * scheduling change rather than a protocol one.
+   * Each stream recomputes its own board rather than sharing one delta: the two
+   * modes see different things, and a bucket leaving the top 60 is not a change
+   * anyone touched. Coalescing into a 100ms tick is a scheduling change only.
    */
   #broadcast(plan: Plan): void {
     if (plan.readyCheck) {
@@ -312,7 +282,7 @@ export class Hub {
     if (lobby) this.#send(connectionId, { type: "lobby.state", lobby });
   }
 
-  /** Re-sends the lobby to every member, each getting their own role's view. */
+  /** Each member gets their own role's view. */
   #refreshLobby(lobbyId: string): void {
     for (const conn of this.#connections.values()) {
       const lobby = this.lobbies.viewFor(lobbyId, conn.accountId);
@@ -345,11 +315,7 @@ export class Hub {
     this.#send(connectionId, { type: "error", code });
   }
 
-  /**
-   * A bucket key arrives from a client, so it is checked before it can create a
-   * bucket. Without this, a socket can populate the board with keys that
-   * resolve to no relic and no refinement — rows nobody can ever join.
-   */
+  /** Without this a socket can fill the board with rows nobody can join. */
   #validBucketKey(key: BucketKey): boolean {
     const i = key.lastIndexOf(":");
     if (i <= 0) return false;
@@ -358,7 +324,7 @@ export class Hub {
     return this.#knownRelic(relicId);
   }
 
-  /** An account row exists only once a name has been set. */
+  /** An account exists only once a name has been set. */
   #hasAccount(accountId: AccountId): boolean {
     return (
       this.#db
@@ -375,12 +341,12 @@ export class Hub {
     return this.#db;
   }
 
-  /** For the HTTP board route. Anonymous readers share one cached projection. */
+  /** Anonymous readers share one cached projection. */
   cachedBoard() {
     return this.cache.get(this.buckets, this.#now());
   }
 
-  /** Distinct accounts holding at least one entry. Not sockets, not browsers. */
+  /** Distinct ACCOUNTS holding an entry — not sockets, not browsers. */
   playersQueued(): number {
     const accounts = new Set<AccountId>();
     for (const bucket of this.buckets.values()) {

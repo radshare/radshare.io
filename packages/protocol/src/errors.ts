@@ -1,10 +1,8 @@
 /**
  * Every failure the user can see, named once.
  *
- * The wire carries `code` alone. Copy is looked up here, never sent, so a
- * wording change is a one-line edit that cannot desynchronise the two ends.
- * The server can only emit a listed code; a client `switch` over ErrorCode must
- * be exhaustive or the build fails.
+ * The wire carries `code` alone and the copy is looked up here, so a wording
+ * change cannot desynchronise the two ends.
  */
 
 export const ERROR_COPY = {

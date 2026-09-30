@@ -2,18 +2,13 @@
   import type { RelicTier } from "@radshare/protocol";
 
   /**
-   * The ONLY place a tier colour appears. Never a row, a border, a fill
-   * segment or a button.
+   * The ONLY place a tier colour appears — never a row, border, segment or
+   * button.
    *
-   * The label is not optional and there is no icon-only variant. Tier is the
-   * board's primary scanning dimension, and under deuteranopia neo, meso and
-   * lith converge — so the text is the information and the colour is the
-   * shortcut, never the other way round.
-   *
-   * The tier is read from the vendored relic data rather than parsed out of a
-   * display name. Requiem and Vanguard relics have no palette entry, so they
-   * render in secondary text with their label intact rather than borrowing a
-   * colour that means something else.
+   * The label is not optional: under deuteranopia neo, meso and lith converge,
+   * so the text is the information and the colour is the shortcut. Requiem and
+   * Vanguard have no palette entry and render in secondary text rather than
+   * borrowing a colour that means something else.
    */
   let { tier }: { tier: RelicTier | null } = $props();
 

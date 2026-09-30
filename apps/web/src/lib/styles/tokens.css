@@ -1,17 +1,15 @@
 /*
- * Design tokens. DESIGN.md at the repo root is the source of truth; this file
- * is its only transcription. A value that disagrees with DESIGN.md is a bug in
- * this file, not a local override.
+ * Design tokens. DESIGN.md is the source of truth and this is its only
+ * transcription, so a value that disagrees with it is a bug here.
  *
- * NOTHING ELSE IN THE APP MAY WRITE A HEX LITERAL. `tokens.test.ts` fails the
- * build if a component does, because a design system leaks one stray `#1a1a1a`
- * at a time and nobody notices until half the palette is unreachable.
+ * NOTHING ELSE MAY WRITE A HEX LITERAL — `tokens.test.ts` fails the build if a
+ * component does. A design system leaks one stray `#1a1a1a` at a time.
  */
 
 :root {
   /* --- colour --------------------------------------------------------------
-   * Near-black is a USE-SCENE decision, not a category default: night, second
-   * monitor, beside a dark fullscreen game. Do not "modernize" this to light.
+   * Near-black is a USE-SCENE decision: night, second monitor, beside a dark
+   * fullscreen game. Do not "modernize" this to light.
    */
   --bg: #0b1116; /* page */
   --surface: #111a21; /* panels, table body */
@@ -37,19 +35,17 @@
    * than the usual purple, which would read as a fifth tier colour. */
   --link-visited: #c9b489;
 
-  /* Tier colours live in the tier badge and NOWHERE else: never a row, a
-   * border, a fill segment or a button. --tier-axi is pale sand rather than
-   * its canonical gold because gold and the amber primary are the same hue,
-   * and an Axi badge beside a filled button would read as a second button. */
+  /* Tier badge only — never a row, border, segment or button. --tier-axi is
+   * pale sand rather than canonical gold: gold and the amber primary are the
+   * same hue, so an Axi badge beside a button would read as a second button. */
   --tier-axi: #ead9a0;
   --tier-neo: #7fc9e8;
   --tier-meso: #6e8be8;
   --tier-lith: #b58be0;
 
   /* --- typography ---------------------------------------------------------
-   * Plex Mono is not costume: in-game names are identifiers people copy
-   * character-for-character, relic codes are codes, and every counter and age
-   * is a figure that must align in a column.
+   * Plex Mono is not costume: in-game names are copied character-for-character
+   * and every counter must align in a column.
    */
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
@@ -66,8 +62,7 @@
   --tracking-label: 0.08em;
 
   /* --- spacing -------------------------------------------------------------
-   * 4px base. The row height doubles as the minimum touch target, so the board
-   * needs no separate mobile row metric.
+   * 4px base. The row height doubles as the minimum touch target.
    */
   --space-1: 4px;
   --space-2: 8px;
@@ -80,17 +75,15 @@
 
   --row-height: 44px;
 
-  /* More space above a heading than below it. This is the rule that most often
-   * survives in the spec and dies in the CSS, so it is a token. */
+  /* More space above a heading than below. A token because this is the rule
+   * that most often survives in the spec and dies in the CSS. */
   --label-space-above: var(--space-8);
   --label-space-below: var(--space-3);
 
   /* --- depth, radius, motion ----------------------------------------------
-   * NO GLOW. EVER. No box-shadow with a zero offset, no coloured halo, no neon
-   * bleed. This is the single rule that keeps the design from reading as
-   * machine-generated and the one most likely to come back during
-   * implementation. Offset plus blur is depth; zero-offset colour is
-   * decoration. The one shadow below is offset.
+   * NO GLOW. EVER. No zero-offset box-shadow, no coloured halo, no neon bleed.
+   * Offset plus blur is depth; zero-offset colour is decoration, and it is the
+   * single tell that makes a dark UI read as machine-generated.
    */
   --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45);
 

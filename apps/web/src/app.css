@@ -1,10 +1,7 @@
 @import "tailwindcss";
 @import "./lib/styles/tokens.css";
 
-/*
- * Tailwind v4 reads its theme from CSS. Every utility resolves to a token, so
- * `bg-surface` and `var(--surface)` cannot drift apart.
- */
+/* Every utility resolves to a token, so the two cannot drift apart. */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -55,10 +52,9 @@ body {
 }
 
 /*
- * Tabular figures on EVERY numeric cell. Non-negotiable: a board whose counts
- * jitter as digits change is a board that looks broken, so this is a
- * correctness requirement rather than a refinement. Applied to the mono face
- * wholesale, because in this UI mono means data means numbers.
+ * A board whose counts jitter as digits change looks broken, so this is a
+ * correctness requirement. Applied to the mono face wholesale: here mono means
+ * data means numbers.
  */
 .font-mono,
 [class*="font-mono"],
@@ -67,11 +63,8 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Browser surfaces
- *
- * These ship with defaults that belong to no design system. On a screen that is
- * mostly a scrolling table of numbers, theming them is the cheapest tell that
- * the page was designed rather than assembled.
+ * Browser surfaces — the cheapest tell that a page was designed rather than
+ * assembled, on a screen that is mostly a scrolling table of numbers.
  * ------------------------------------------------------------------------ */
 
 ::selection {
@@ -115,10 +108,7 @@ a:visited {
 }
 
 /* ---------------------------------------------------------------------------
- * Type roles
- *
- * Named after what they are FOR, not what they look like, so a size change is
- * one edit here rather than a sweep through components.
+ * Type roles, named for what they are FOR, so a size change is one edit.
  * ------------------------------------------------------------------------ */
 
 .type-display {
@@ -156,11 +146,8 @@ a:visited {
 }
 
 /* ---------------------------------------------------------------------------
- * Motion
- *
- * One authored moment: the match transition. Everything else is 120ms or
- * nothing. No entrance animations on sections. No pulsing status dots — a live
- * board proves it is live by its numbers changing.
+ * Motion. One authored moment: the match transition. Everything else is 120ms
+ * or nothing. No pulsing dots — a live board proves it by its numbers changing.
  * ------------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,16 +11,11 @@
   import TierBadge from "./TierBadge.svelte";
 
   /**
-   * Pick relics, pick refinements, queue.
+   * The selection is a CROSS PRODUCT: three relics against two refinements is
+   * six buckets. That is why the counter reads pairs — someone counting relics
+   * hits the cap without understanding why.
    *
-   * The selection is a CROSS PRODUCT: every chosen relic against every chosen
-   * refinement. Picking three relics and two refinements is six buckets, which
-   * is why the counter reads pairs rather than relics — the cap is on
-   * (relic, refinement) pairs, and someone who only counts relics will hit it
-   * without understanding why.
-   *
-   * Radiant is preselected because it is what radsharing means. The other
-   * three exist because the product should not decide for you.
+   * Radiant is preselected because it is what radsharing means.
    */
   let {
     queued,
@@ -30,8 +25,7 @@
     onLeave,
   }: {
     queued: boolean;
-    /** From the server's own `you` list, not from local state — after a
-     *  refresh the chips are gone but the queue entries are not. */
+    /** From the server's `you`, not local state: a refresh loses the chips. */
     queuedCount: number;
     disabled?: boolean;
     onQueue: (selection: BucketKey[]) => void;
@@ -71,8 +65,7 @@
   <h2 class="type-label" id="composer-label">Queue composer</h2>
 
   {#if queued}
-    <!-- While queued the board IS your buckets, so the composer steps back to
-         one action rather than competing with it. -->
+    <!-- While queued the board IS your buckets, so this steps back. -->
     <div class="flex items-center gap-[var(--space-4)]">
       <p class="type-body">
         Queued for {queuedCount}
@@ -101,7 +94,7 @@
 
     {#if query.trim() !== ""}
       {#if results.length === 0}
-        <!-- Name the query back. A stale list would be worse than nothing. -->
+<!-- Name the query back; a stale list is worse than nothing. -->
         <p class="type-caption" style="padding-top: var(--space-2)">
           No relic matches “{query}”.
           <button type="button" class="underline" onclick={() => (query = "")}>Clear</button>
@@ -119,8 +112,7 @@
                 <TierBadge tier={relic.tier} />
                 <span class="type-data">{relic.name}</span>
                 {#if relic.vaulted}
-                  <!-- The wedge. A vaulted relic is exactly the one recruiting
-                       chat cannot fill, so it is worth saying out loud. -->
+                  <!-- The wedge: the relics recruiting chat cannot fill. -->
                   <span class="type-caption" style="color: var(--text-secondary)">vaulted</span>
                 {/if}
               </button>
@@ -199,8 +191,7 @@
       {#if selection.length === 0}
         <span class="type-caption">Pick at least one relic.</span>
       {:else if overCap}
-        <!-- Refused inline at the composer, never a modal, and never a partial
-             join: the whole message is rejected server-side too. -->
+        <!-- Inline, never a modal. The server rejects the whole message too. -->
         <span class="type-caption" style="color: var(--danger)">
           {MAX_PAIRS_PER_ACCOUNT}/{MAX_PAIRS_PER_ACCOUNT} buckets — remove a relic or a refinement.
         </span>

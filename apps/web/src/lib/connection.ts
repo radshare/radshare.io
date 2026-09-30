@@ -1,13 +1,9 @@
 /**
- * The socket client, minus the reactivity.
+ * The socket client, minus the reactivity. Transport and timers are injected,
+ * so backoff, replay and the disowning of stale counts are tested by calling
+ * functions rather than pulling a network cable.
  *
- * The transport and the timer are injected, so the whole reconnect story —
- * backoff, resubscribe, the board disowning its counts — is tested by calling
- * functions rather than by pulling a network cable. `socket.svelte.ts` is the
- * thin runes wrapper over this.
- *
- * Only signed-in accounts hold a socket. An anonymous visitor polls the cached
- * board and never reaches this file.
+ * Anonymous visitors poll the cached board and never reach this file.
  */
 
 import {
@@ -47,7 +43,7 @@ export type ReadyGateState = {
   bucketKey: BucketKey;
   members: ReadyMemberView[];
   deadlineAt: number;
-  /** Set once this client has confirmed, so the button locks. */
+  /** Locks the button. */
   confirmed: boolean;
 };
 
@@ -56,10 +52,10 @@ export type ClientState = {
   board: BoardState;
   gate: ReadyGateState | null;
   lobby: LobbyView | null;
-  /** Why the last gate ended without a lobby. Cleared on the next action. */
+  /** Cleared on the next action. */
   gateFailure: ReadyFailedReason | null;
   error: ErrorCode | null;
-  /** When the next reconnect attempt fires, for the countdown in the bar. */
+  /** For the countdown in the connection bar. */
   retryAt: number | null;
 };
 
@@ -73,7 +69,7 @@ export const INITIAL_STATE: ClientState = {
   retryAt: null,
 };
 
-/** The two `localStorage` calls this needs, injected so tests need no browser. */
+/** Injected so tests need no browser. */
 export type SelectionStore = {
   read(): BucketKey[] | null;
   write(selection: BucketKey[] | null): void;
@@ -99,8 +95,7 @@ export function localSelectionStore(): SelectionStore {
         if (selection === null || selection.length === 0) localStorage.removeItem(SELECTION_KEY);
         else localStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
       } catch {
-        // Private mode, disabled storage. A queue that works only with
-        // storage would be worse than one that forgets across refreshes.
+        // Private mode. Not fatal.
       }
     },
   };
@@ -123,12 +118,9 @@ export class Connection {
   #closed = false;
 
   /**
-   * The last selection this client sent, replayed on reconnect.
-   *
-   * Queue entries die with the socket, so a dropped connection really does take
-   * you out of the queue — there is no grace window. Replaying is how a blip
-   * costs a position rather than the whole queue, and it is the mechanism that
-   * made the grace window redundant in the first place.
+   * Replayed on reconnect. Queue entries die with the socket and there is no
+   * grace window, so this is what makes a blip cost a position rather than the
+   * whole queue — and what made the grace window redundant.
    */
   #selection: BucketKey[] = [];
 
@@ -166,7 +158,7 @@ export class Connection {
     });
   }
 
-  /** Deliberate teardown: no reconnect, no backoff. */
+  /** No reconnect, no backoff. */
   disconnect(): void {
     this.#closed = true;
     if (this.#retryHandle !== null) this.#opts.clearTimer(this.#retryHandle);
@@ -180,7 +172,7 @@ export class Connection {
   // actions
   // -------------------------------------------------------------------------
 
-  /** Always the FULL selection, never a diff — the server treats it as a set. */
+  /** The FULL selection — the server treats it as a set. */
   join(selection: BucketKey[]): void {
     this.#selection = [...selection];
     this.#writeStored(this.#selection);
@@ -188,12 +180,7 @@ export class Connection {
     this.#send({ type: "queue.join", selection: this.#selection });
   }
 
-  /**
-   * Clears the stored selection as well as the live one.
-   *
-   * Leaving is a DECISION, and a refresh must not undo it. Without this the
-   * next page load would helpfully put you back in a queue you just left.
-   */
+  /** Leaving is a DECISION: without clearing storage a refresh would undo it. */
   leave(): void {
     this.#selection = [];
     this.#writeStored(null);
@@ -204,8 +191,7 @@ export class Connection {
   confirmReady(): void {
     const gate = this.#state.gate;
     if (!gate || gate.confirmed) return;
-    // Locked optimistically: the button must not invite a second press while
-    // the confirmation is in flight.
+    // Optimistic, so the button cannot invite a second press in flight.
     this.#patch({ gate: { ...gate, confirmed: true } });
     this.#send({ type: "ready.confirm", gateId: gate.gateId });
   }
@@ -224,7 +210,7 @@ export class Connection {
     try {
       return this.#storage?.read() ?? [];
     } catch {
-      return [];
+      return []; // storage can throw on access alone when cookies are blocked
     }
   }
 
@@ -232,17 +218,16 @@ export class Connection {
     try {
       this.#storage?.write(selection);
     } catch {
-      // Storage is an optimisation. Losing it costs a queue position across a
-      // refresh, which is survivable; throwing here costs the whole page.
+      // Losing storage costs a position across a refresh; throwing costs the page.
     }
   }
 
-  /** What would be replayed on the next connect. Drives the composer's chips. */
+  /** What the next connect would replay. */
   get selection(): BucketKey[] {
     return [...this.#selection];
   }
 
-  /** Back to the queue after a failed gate, with the selection still loaded. */
+  /** One click back after a failed gate; the selection is still loaded. */
   requeue(): void {
     if (this.#selection.length > 0) this.join(this.#selection);
     else this.#patch({ gateFailure: null });
@@ -256,17 +241,10 @@ export class Connection {
     this.#attempt = 0;
     this.#patch({ connection: "live", retryAt: null, error: null });
 
-    // The server sends a snapshot on open and hands back an open lobby without
-    // being asked, so there is nothing to request.
-    //
-    // Re-sending the selection covers two cases that look the same from here.
-    // A dropped socket was evicted from every bucket, so a reconnect must
-    // re-queue or the user silently leaves the queue by losing their Wi-Fi.
-    // A REFRESH is the same event: the old socket closed, the account was
-    // evicted, and the new page has no memory — which is what the stored
-    // selection is for. Either way the position resets, which is the honest
-    // cost of presence and the reason there is no grace window pretending
-    // otherwise.
+    // The server sends a snapshot and any open lobby unasked, so nothing is
+    // requested. Re-sending the selection covers a dropped socket and a
+    // refresh, which are the same event: both were evicted from every bucket.
+    // The position resets either way -- the honest cost of presence.
     if (this.#selection.length > 0) this.#send({ type: "queue.join", selection: this.#selection });
   }
 
@@ -301,8 +279,7 @@ export class Connection {
         return this.#patch({ gate: { ...gate, members: msg.members } });
       }
       case "ready.failed":
-        // The selection is deliberately KEPT so re-queueing is one click. A
-        // non-confirmer is out of the queue, but never out of their choices.
+        // The selection is KEPT: out of the queue, never out of their choices.
         return this.#patch({ gate: null, gateFailure: msg.reason });
       case "match.found":
         return this.#patch({ gate: null, gateFailure: null });
@@ -344,8 +321,7 @@ export function webSocketTransport(url: string): TransportFactory {
     ws.addEventListener("open", handlers.onOpen);
     ws.addEventListener("message", (e) => handlers.onMessage(String(e.data)));
     ws.addEventListener("close", handlers.onClose);
-    // An error is always followed by a close, so it needs no separate path --
-    // it would only produce a second reconnect timer.
+    // An error is always followed by a close; handling it would double the timer.
     ws.addEventListener("error", () => {});
     return {
       send: (data) => {

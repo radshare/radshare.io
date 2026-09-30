@@ -1,14 +1,8 @@
 <script lang="ts">
   /**
-   * Four DISCRETE segments, not a continuous bar — the quantity is four people,
-   * not a percentage.
-   *
-   * Never renders 0/4: an empty bucket is deleted rather than shown, so at
-   * least one segment is always filled. Never renders 4/4 either: a bucket
-   * reaching four opens a ready check and stops being a board row.
-   *
-   * Fill state is never carried by colour alone. The segments are shapes and
-   * the `N/4` count is always beside them in text.
+   * DISCRETE segments, not a bar: the quantity is four people, not a
+   * percentage. Never 0/4 (an empty bucket is deleted) and never 4/4 (four
+   * opens a ready check). The `N/4` count is always beside them in text.
    */
   let { count, size = 4 }: { count: number; size?: number } = $props();
 </script>

@@ -1,17 +1,11 @@
 /**
- * Puts real accounts into the real queue on your LOCAL server, so the board
- * has something on it while the queue composer does not exist yet.
+ * Puts real accounts into the real queue on a LOCAL server, for exercising the
+ * board and the ready gate without four browsers.
  *
- * This is a driver, not a seeder. It creates genuine accounts and opens
- * genuine sockets that hold genuine queue entries — close it and the board
- * empties, exactly as it would for real people. Nothing it produces is written
- * into the product, and it refuses to run against anything but localhost so it
- * cannot be pointed at a deployment.
+ *   bun scripts/dev-queue.ts --count 4 --relic "Axi A1" --refinement radiant
  *
- *   bun scripts/dev-queue.ts                       three in one bucket
- *   bun scripts/dev-queue.ts --count 3 --relic "Axi A1" --refinement radiant
- *
- * Leave it running. Ctrl-C releases everyone.
+ * A driver, not a seeder: genuine accounts holding genuine entries, so closing
+ * it empties the board exactly as real people would. Localhost only.
  */
 
 import {
@@ -75,8 +69,7 @@ for (let i = 0; i < count; i += 1) {
   ws.addEventListener("message", (e) => {
     const msg = JSON.parse(String(e.data)) as { type: string; code?: string };
     if (msg.type === "error") console.error(`${ign}: ${msg.code}`);
-    // A ready check means a real person completed the bucket. Confirm, so the
-    // lobby actually forms and you can see the screen you were testing for.
+    // Confirm, so the lobby forms and the screen under test appears.
     if (msg.type === "ready.check") {
       const gateId = (JSON.parse(String(e.data)) as { gateId: string }).gateId;
       console.log(`${ign} confirming ready`);

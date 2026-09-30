@@ -4,12 +4,11 @@
   import TierBadge from "./TierBadge.svelte";
 
   /**
-   * The pre-lobby confirmation. A bucket reaching four does NOT create a
-   * lobby — it opens this, and the lobby exists only once all four confirm.
+   * The pre-lobby confirmation: a bucket reaching four opens this, and the
+   * lobby exists only once all four confirm.
    *
-   * Genuine depth is required here (it sits over the board), so this is the one
-   * offset shadow in the app. Offset plus blur is depth; zero-offset colour is
-   * decoration, and there is no glow anywhere.
+   * It sits over the board, so it carries the app's one offset shadow. Offset
+   * plus blur is depth; zero-offset colour is glow, and there is none.
    */
   let {
     gate,
@@ -52,7 +51,7 @@
           style="border-color: var(--border)"
         >
           <span class="type-data">Tenno {member.accountId.slice(0, 6)}</span>
-          <!-- Never colour alone: the badge always carries its text. -->
+          <!-- Never colour alone. -->
           {#if member.confirmed}
             <span class="type-caption font-semibold" style="color: var(--ready)">READY</span>
           {:else}

@@ -1,16 +1,10 @@
 /**
- * The relic list, vendored from WFCD at build time.
+ * The relic list, vendored from WFCD at build time by `scripts/vendor-relics.ts`
+ * and checked in — a relic list that moves between deploys is a bucket key that
+ * moves between deploys.
  *
- * `relics.generated.json` is produced by `scripts/vendor-relics.ts` and checked
- * in. A build that reaches out to GitHub fails when GitHub does, and a relic
- * list that moves between deploys is a bucket key that moves between deploys.
- *
- * **WFCD has no refinement-independent relic.** Every entry in their file is
- * one (relic, refinement) pair, with the refinement in both the display name
- * and the uniqueName. Our `RelicId` is the base — their uniqueName with the
- * common prefix and the refinement suffix removed — and the refinement is
- * ours. That is what lets a bucket key mean "Axi A1, radiant" rather than
- * "Axi A1 Intact, radiant".
+ * WFCD has no refinement-independent relic, so `RelicId` is their uniqueName
+ * minus the shared prefix and the refinement suffix.
  */
 
 import data from "./relics.generated.json" with { type: "json" };
@@ -24,7 +18,7 @@ export type Relic = {
   /** What the player sees in their inventory, e.g. "Axi A1". */
   name: string;
   tier: RelicTier;
-  /** Out of the drop tables. The whole reason this product exists. */
+  /** Out of the drop tables — the relics recruiting chat cannot fill. */
   vaulted: boolean;
 };
 
@@ -42,12 +36,10 @@ const BY_ID = new Map<RelicId, Relic>(RELICS.map((r) => [r.id, r]));
 const BY_NAME = new Map<string, Relic>(RELICS.map((r) => [r.name.toLowerCase(), r]));
 
 /**
- * Alternate WFCD ids that print the same name as a canonical relic.
+ * WFCD ids that print the same name as a canonical relic — `Lith G12` today.
  *
- * Exactly one relic needs this today (`Lith G12`), and it matters more than
- * its size suggests: a player only ever knows the printed name, so two people
- * each holding "Lith G12" must land in the SAME bucket. Without the alias they
- * would sit queued forever, side by side, never matching.
+ * A player only knows the printed name, so two people each holding "Lith G12"
+ * must land in the same bucket. Without this they queue side by side forever.
  */
 const ALIAS_TO_CANONICAL = new Map<RelicId, RelicId>();
 for (const r of data.relics) {
@@ -69,12 +61,12 @@ export function findRelicByName(name: string): Relic | undefined {
   return BY_NAME.get(name.trim().toLowerCase());
 }
 
-/** True when the id names a relic that exists. The server's `knownRelic`. */
+/** The server's `knownRelic`. */
 export function isKnownRelic(relicId: RelicId): boolean {
   return BY_ID.has(canonicalRelicId(relicId));
 }
 
-/** The display name, or the id verbatim when unknown — never a placeholder. */
+/** Falls back to the id verbatim. Ugly beats a fabricated name. */
 export function relicName(relicId: RelicId): string {
   return findRelic(relicId)?.name ?? relicId;
 }
@@ -84,11 +76,8 @@ export function relicTier(relicId: RelicId): RelicTier | null {
 }
 
 /**
- * Free-text search for the composer.
- *
- * Prefix matches rank above substring ones, because someone typing "axi a1"
- * wants Axi A1 first and not Axi A10 through A19. Ties break on name so the
- * list never reshuffles between keystrokes that match the same set.
+ * Prefix matches rank above substring ones: typing "axi a1" should give Axi A1,
+ * not Axi A10 through A19. Ties break on name so the list never reshuffles.
  */
 export function searchRelics(query: string, limit = 40): Relic[] {
   const q = query.trim().toLowerCase();
@@ -106,7 +95,7 @@ export function searchRelics(query: string, limit = 40): Relic[] {
   return [...prefix.sort(byName), ...contains.sort(byName)].slice(0, limit);
 }
 
-/** Builds a bucket key from a relic and a refinement, resolving aliases. */
+/** Resolves aliases, so two spellings of one relic share a bucket. */
 export function relicBucketKey(relicId: RelicId, refinement: Refinement): BucketKey {
   return `${canonicalRelicId(relicId)}:${refinement}`;
 }

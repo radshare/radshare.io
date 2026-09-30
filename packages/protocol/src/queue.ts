@@ -7,18 +7,12 @@
 export type AccountId = string;
 
 /**
- * A relic, independent of refinement.
+ * A relic, independent of refinement: WFCD's `uniqueName` minus the shared
+ * prefix and the refinement suffix.
  *
- * Derived from WFCD's `uniqueName` by stripping the common
- * `/Lotus/Types/Game/Projections/` prefix and the refinement suffix — because
- * WFCD HAS NO refinement-independent relic. Every entry in their file is one
- * (relic, refinement) pair, with the refinement baked into both the display
- * name ("Axi A1 Radiant") and the id (…EPlatinum). Carrying their id verbatim
- * would produce keys like `T4VoidProjectionEBronze:radiant`, which reads
- * "Intact, radiant".
- *
- * See `relics.ts`. The vendored file records the prefix and the suffix map, so
- * the original uniqueName is always recoverable.
+ * WFCD has no refinement-independent relic — every entry of theirs is one
+ * (relic, refinement) pair. Carrying their id verbatim would produce
+ * `T4VoidProjectionEBronze:radiant`, i.e. "Intact, radiant". See `relics.ts`.
  */
 export type RelicId = string;
 
@@ -43,16 +37,14 @@ export function parseBucketKey(key: BucketKey): { relicId: RelicId; refinement: 
 export const SQUAD_SIZE = 4;
 
 /**
- * Cap on the PRODUCT, not the relic list: 10 relics x 4 refinements would be 40
- * buckets, and at launch scale one account's 40 single-person buckets would be a
- * visible fraction of a 60-row board.
+ * Cap on (relic, refinement) PAIRS, not relics. At launch scale one account's
+ * 40 single-person buckets would be a visible fraction of a 60-row board.
  */
 export const MAX_PAIRS_PER_ACCOUNT = 20;
 
 /**
- * A bucket entry holds no connection reference at all. Connections live in a
- * separate registry, because an account may hold several sockets at once and is
- * evicted only when its last one closes.
+ * No connection reference: an account may hold several sockets, so connections
+ * live in a separate registry and eviction waits for the last close.
  */
 export type Entry = {
   accountId: AccountId;
@@ -60,12 +52,8 @@ export type Entry = {
 };
 
 /**
- * Ordered ascending by `enqueuedAt`. FIFO selection is an explicit contract, not
- * an accident of insertion order.
- *
- * A bucket exists only while it holds at least one entry: created by the first
- * joiner, deleted on the last removal. `0/4` is therefore not a state this
- * system can be in, and the board never renders it.
+ * Ascending by `enqueuedAt` — FIFO is a contract, not an accident of insertion
+ * order. A bucket exists only while non-empty, so `0/4` is unreachable.
  */
 export type Bucket = Entry[];
 

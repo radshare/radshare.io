@@ -1,9 +1,4 @@
-/**
- * The reactive shell over `Connection`.
- *
- * Deliberately thin: every decision lives in `connection.ts`, which is tested
- * without a browser. This file exists only to turn a callback into runes.
- */
+/** Runes over `Connection`. Every decision lives there; this is the shell. */
 
 import { browser } from "$app/environment";
 import {
@@ -18,7 +13,7 @@ export class SocketStore {
   state = $state<ClientState>({ ...INITIAL_STATE });
   #conn: Connection | null = null;
 
-  /** No-op outside the browser, so SSR renders the server-fetched board. */
+  /** No-op on the server, so SSR renders the fetched board. */
   start(url = "/ws"): void {
     if (!browser || this.#conn) return;
     const absolute = new URL(url, location.href);
@@ -26,8 +21,7 @@ export class SocketStore {
 
     this.#conn = new Connection({
       transport: webSocketTransport(absolute.toString()),
-      // A refresh closes the socket, which evicts the account from every
-      // bucket. Without the stored selection the new page has no memory and
+      // A refresh closes the socket and evicts from every bucket; without this
       // the user silently leaves a queue they never left.
       storage: localSelectionStore(),
       onChange: (next) => {

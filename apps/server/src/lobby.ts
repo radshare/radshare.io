@@ -1,17 +1,12 @@
 /**
  * The lobby layer: post-match, durable, asymmetric.
  *
- * Lobbies are rows in SQLite and survive disconnection, browser close and
- * server restart. That is the opposite of the queue, which is in-memory and
- * dies with the socket — and the difference is deliberate. A queue entry is a
- * claim about right now; a lobby is a record of something that happened.
+ * Lobbies are SQLite rows and survive disconnection, browser close and restart
+ * — the opposite of the queue. A queue entry is a claim about right now; a
+ * lobby is a record of something that happened.
  *
- * **The intended happy path is that you leave.** You read the names, alt-tab
- * into Warframe, and abandon the browser. Nothing in this file punishes that:
- * there is no heartbeat, no attendance, no timeout that marks you absent. The
- * only thing that removes you is pressing Leave.
- *
- * `bun:sqlite` is synchronous, so every function here is too.
+ * The happy path is that you LEAVE: read the names, alt-tab into Warframe,
+ * abandon the browser. Nothing here punishes it — no heartbeat, no attendance.
  */
 
 import type { Database } from "bun:sqlite";
@@ -37,7 +32,7 @@ import {
 import { recordEvent } from "./db.ts";
 import type { Gate } from "./readygate.ts";
 
-/** Resolves a WFCD `uniqueName` to something a human can paste. Vendored data. */
+/** Vendored WFCD lookup, for the whisper the host pastes. */
 export type RelicNames = (relicId: string) => string;
 
 type LobbyRow = {
@@ -56,7 +51,7 @@ type MemberRow = {
   enqueued_at: number;
   matched_at: number;
   left_at: number | null;
-  /** Non-null by schema: NOT NULL plus a non-blank CHECK, reached here via the FK. */
+  /** Non-null by schema, reached here via the FK. */
   ign: string;
   platform: string | null;
   mastery_rank: number | null;
@@ -73,15 +68,11 @@ export class Lobbies {
   ) {}
 
   /**
-   * Turns a completed gate into a lobby.
+   * The ONE path that creates a lobby, which makes "everyone here already
+   * confirmed" true by construction.
    *
-   * Called only after all four confirmed — this is the one path that creates a
-   * lobby, which is what makes "everyone here already confirmed" true by
-   * construction rather than by convention.
-   *
-   * Slots are assigned in the gate's FIFO order, so slot 0 is the longest
-   * waiter and therefore the host. One transaction: a partial insert would
-   * leave a lobby nobody can complete.
+   * Slot 0 is the longest waiter and therefore the host. One transaction: a
+   * partial insert would leave a lobby nobody can complete.
    */
   create(gate: Gate, now: number): CreateResult {
     const lobbyId = this.newId();
@@ -117,17 +108,14 @@ export class Lobbies {
   }
 
   /**
-   * The asymmetric view. This is the whole point of the screen.
+   * The asymmetric view — the whole point of the screen.
    *
-   * The host's copy carries a ready-to-paste whisper on the OTHER three rows.
-   * A member's copy carries none at all — not a disabled button, not an empty
-   * string, the field is absent. Four people each whispering three others is
-   * twelve whispers and colliding invites, and the cheapest way to prevent it
-   * is to never send a non-host the data.
+   * The host's copy carries a whisper on the OTHER three rows. A member's
+   * carries none at all: not a disabled button, not an empty string, the field
+   * is absent. Twelve whispers and colliding invites is what that prevents.
    *
-   * `viewerAccountId` need not be a member: a lobby opened by share code is
-   * read before anyone joins it. A non-member reads as a `member` role with no
-   * `isYou` row, which is the correct shape for that screen.
+   * `viewerAccountId` need not be a member — a share code is read before
+   * joining — and a non-member correctly reads as `member` with no `isYou`.
    */
   viewFor(lobbyId: LobbyId, viewerAccountId: AccountId): LobbyView | null {
     const lobby = this.db
@@ -191,10 +179,8 @@ export class Lobbies {
   }
 
   /**
-   * Reconnect, derived from the AUTHENTICATED ACCOUNT rather than from a stored
-   * token — so a second device, a private window or cleared site data all still
-   * work. A `localStorage` token is an optimization for the anonymous fast path
-   * only, never the sole key.
+   * Derived from the ACCOUNT, not a stored token, so a second device, a private
+   * window or cleared site data all still work.
    */
   openLobbyFor(accountId: AccountId, now: number): LobbyId | null {
     const row = this.db
@@ -221,11 +207,9 @@ export class Lobbies {
   }
 
   /**
-   * Explicit leave. The lobby continues at three and there is NO backfill — the
-   * remaining members press Queue again. The row is marked rather than deleted
-   * so the host can still see who was already whispered.
-   *
-   * Dissolves the lobby when the last member goes.
+   * The lobby continues at three; there is NO backfill. The row is marked
+   * rather than deleted so the host still sees who was whispered. Dissolves on
+   * the last member.
    */
   leave(lobbyId: LobbyId, accountId: AccountId, now: number): { dissolved: boolean } {
     const changed = this.db
@@ -247,7 +231,7 @@ export class Lobbies {
     return { dissolved: this.close(lobbyId, now) };
   }
 
-  /** Dissolution. Idempotent: closing a closed lobby reports false. */
+  /** Idempotent: closing a closed lobby reports false. */
   close(lobbyId: LobbyId, now: number): boolean {
     return (
       this.db
@@ -256,7 +240,7 @@ export class Lobbies {
     );
   }
 
-  /** Everything past its two-hour ceiling. Returns what it closed. */
+  /** Everything past its two-hour ceiling. */
   expire(now: number): LobbyId[] {
     const rows = this.db
       .query<{ lobby_id: string }, [number]>(
@@ -288,17 +272,11 @@ export class Lobbies {
 }
 
 /**
- * Create or update an account.
+ * The IGN is REQUIRED and the only field that is: the product ends in a host
+ * typing that name into Warframe, so a nameless account cannot be invited.
+ * Rejected here AND by a CHECK, so no caller and no migration can produce one.
  *
- * The IGN is REQUIRED and is the only field that is. An account does not exist
- * without one, because the product ends in a host typing that name into
- * Warframe — a nameless account is one that cannot be invited, and every
- * screen downstream would need a branch for a case that must not happen.
- * Rejected here AND by a CHECK constraint, so neither a careless caller nor a
- * future migration can produce one.
- *
- * Nothing here is verified: DE exposes no player API. Required and verified are
- * different claims and only the first is made.
+ * Unverified, though — DE exposes no player API.
  */
 export function upsertAccount(
   db: Database,
@@ -323,7 +301,7 @@ export function upsertAccount(
   ).run(account.accountId, ign, account.platform ?? null, account.masteryRank ?? null, now);
 }
 
-/** Carries the wire code, so a caller never has to map it by hand. */
+/** Carries the wire code so callers need not map it. */
 export class IgnRequiredError extends Error {
   readonly code: ErrorCode = "IGN_REQUIRED";
   constructor() {
