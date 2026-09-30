@@ -4,14 +4,30 @@
  *
  * Steam is deferred: OpenID 2.0 rather than OAuth2, so Clerk cannot broker it.
  *
- * The whole surface is one function — a request in, an account id or null out —
- * so everything downstream knows nothing about Clerk.
+ * The whole surface is one function — a request in, an `AuthResult` out — so
+ * everything downstream knows nothing about Clerk.
  */
 
 import { createClerkClient, type ClerkClient } from "@clerk/backend";
 import type { AccountId } from "@radshare/protocol";
 
-export type Authenticator = (req: Request) => Promise<AccountId | null>;
+/**
+ * `handshake` is the case that is easy to miss and fails silently.
+ *
+ * Clerk answers some requests with a handshake rather than a verdict: the
+ * browser must bounce through Clerk's frontend API and come back before a
+ * session cookie exists. Collapsing it into "signed out" leaves a signed-in
+ * user looking permanently signed out, with no error anywhere — and the
+ * headers it carries have to reach the response.
+ */
+export type AuthResult =
+  | { kind: "signed-in"; accountId: AccountId }
+  | { kind: "signed-out" }
+  | { kind: "handshake"; headers: Headers };
+
+export type Authenticator = (req: Request) => Promise<AuthResult>;
+
+const SIGNED_OUT: AuthResult = { kind: "signed-out" };
 
 /** The Clerk user id IS the account id; there is no second identity table. */
 export function clerkAuthenticator(client: ClerkClient, authorizedParties?: string[]): Authenticator {
@@ -21,14 +37,16 @@ export function clerkAuthenticator(client: ClerkClient, authorizedParties?: stri
         req,
         authorizedParties ? { authorizedParties } : {},
       );
-      if (!state.isAuthenticated) return null;
+      if (state.status === "handshake") return { kind: "handshake", headers: state.headers };
+      if (!state.isAuthenticated) return SIGNED_OUT;
 
       // Clerk also authenticates machine tokens, which carry no user. Only a
       // person can hold a queue entry, so anything else is rejected.
       const auth = state.toAuth();
-      return "userId" in auth ? (auth.userId ?? null) : null;
+      const userId = auth && "userId" in auth ? auth.userId : null;
+      return userId ? { kind: "signed-in", accountId: userId } : SIGNED_OUT;
     } catch {
-      return null;
+      return SIGNED_OUT;
     }
   };
 }
@@ -63,12 +81,13 @@ export const DEV_COOKIE = "radshare_dev";
 export function devAuthenticator(): Authenticator {
   return async (req) => {
     const header = req.headers.get("x-dev-account");
-    if (header) return header;
+    if (header) return { kind: "signed-in", accountId: header };
 
     const query = new URL(req.url).searchParams.get("dev");
-    if (query) return query;
+    if (query) return { kind: "signed-in", accountId: query };
 
-    return readCookie(req.headers.get("cookie"), DEV_COOKIE);
+    const cookie = readCookie(req.headers.get("cookie"), DEV_COOKIE);
+    return cookie ? { kind: "signed-in", accountId: cookie } : SIGNED_OUT;
   };
 }
 

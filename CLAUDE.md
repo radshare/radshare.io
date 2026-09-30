@@ -22,9 +22,18 @@ Verified: Caddy 2.11.4 **replaces** `X-Forwarded-For` rather than appending, so 
 a client are discarded and reading the header directly is safe. Adding `trusted_proxies` to the
 Caddyfile changes that — do not add it without re-testing.
 
-Auth: Clerk hosted sign-in, verified server-side with the official `@clerk/hono`. The community
-SvelteKit SDK is deliberately kept out of the auth path. Steam is deferred (OpenID 2.0, not
+Auth: Clerk hosted sign-in, verified server-side with the official `@clerk/backend`; the browser
+uses the vanilla `@clerk/clerk-js`. The community SvelteKit SDK is deliberately kept out of the
+auth path. The session is a COOKIE on this origin, which is not a preference — a browser cannot
+put a header on `new WebSocket(url)`, so a cookie is the only thing the upgrade can carry. Steam is deferred (OpenID 2.0, not
 OAuth2, so Clerk cannot broker it).
+
+Clerk's `authenticateRequest` can answer **`status: "handshake"`** rather than a verdict — the
+browser must bounce through Clerk's frontend API before a session cookie exists. Collapsing that
+into "signed out" leaves a signed-in user looking permanently signed out with no error anywhere,
+so `AuthResult` carries it and the HTTP routes pass its headers through. A WebSocket upgrade
+cannot handshake (there is nowhere to redirect one), so `/ws` treats it as a 401 and the page
+load resolves it first.
 
 **An in-game name is REQUIRED and can never be blank.** A Clerk sign-in does not by itself create
 an `accounts` row — the first-run screen asks for the name and the row is written then. Enforced

@@ -7,6 +7,10 @@
   import QueueComposer from "$lib/components/QueueComposer.svelte";
   import SoundControl from "$lib/components/SoundControl.svelte";
   import { notify } from "$lib/notify.svelte.ts";
+  import { session } from "$lib/session.svelte.ts";
+  import SignInBar from "$lib/components/SignInBar.svelte";
+  import IgnSetup from "$lib/components/IgnSetup.svelte";
+  import { PUBLIC_CLERK_PUBLISHABLE_KEY } from "$env/static/public";
   import { countsAreLive } from "$lib/boardState.ts";
   import { readyFailedCopy, errorCopy } from "@radshare/protocol";
   import { labelFor, refinementLabel, waitingCopy } from "$lib/relics.ts";
@@ -21,9 +25,19 @@
   const BASE_TITLE = "radshare — Warframe relic squad queue";
 
   onMount(() => {
-    socket.start();
     notify.start(BASE_TITLE);
     ticker = setInterval(() => (now = Date.now()), 1000);
+
+    // The socket opens only once sign-up is FINISHED. Opening it earlier gets
+    // a 401, and opening it between sign-in and naming yourself would connect
+    // an account that cannot queue.
+    void session.start(PUBLIC_CLERK_PUBLISHABLE_KEY).then(() => {
+      if (session.state.status === "ready") socket.start();
+    });
+  });
+
+  $effect(() => {
+    if (session.state.status === "ready") socket.start();
   });
 
   /**
@@ -88,7 +102,9 @@
   />
 </svelte:head>
 
-<ConnectionBar connection={client.connection} retryAt={client.retryAt} {now} />
+{#if session.state.status === "ready"}
+  <ConnectionBar connection={client.connection} retryAt={client.retryAt} {now} />
+{/if}
 
 {#if client.error}
   <p class="type-caption" role="alert" style="color: var(--danger); padding-top: var(--space-4)">
@@ -114,16 +130,29 @@
   </div>
 {/if}
 
+{#if session.state.status === "needs-ign"}
+  <IgnSetup onSubmit={(ign, platform) => session.setIgn(ign, platform)} />
+{/if}
+
 {#if client.lobby}
   <Lobby lobby={client.lobby} onLeave={() => socket.connection?.leaveLobby()} />
 {:else}
-  <QueueComposer
-    {queued}
-    queuedCount={client.board.you.length}
-    disabled={client.connection !== "live"}
-    onQueue={(selection) => socket.connection?.join(selection)}
-    onLeave={() => socket.connection?.leave()}
-  />
+  {#if session.state.status === "ready"}
+      <QueueComposer
+      {queued}
+      queuedCount={client.board.you.length}
+      disabled={client.connection !== "live"}
+      onQueue={(selection) => socket.connection?.join(selection)}
+      onLeave={() => socket.connection?.leave()}
+    />
+  {:else}
+    <SignInBar
+      state={session.state}
+      canSignIn={session.canSignIn}
+      onSignIn={() => session.signIn()}
+      onSignOut={() => void session.signOut()}
+    />
+  {/if}
 
   {#if mineCopy}
     <p class="type-caption" style="padding-top: var(--space-4)">{mineCopy}</p>
@@ -140,15 +169,24 @@
     <p class="type-caption">updated {data.updatedAgo}s ago</p>
   {/if}
 
-  <SoundControl
-    prefs={notify.prefs}
-    notificationsAvailable={typeof Notification !== "undefined" &&
+  {#if session.state.status === "ready"}
+    <SoundControl
+      prefs={notify.prefs}
+      notificationsAvailable={typeof Notification !== "undefined" &&
       Notification.permission === "default"}
-    onMute={(m) => notify.setMuted(m)}
-    onVolume={(v) => notify.setVolume(v)}
-    onPreview={() => notify.preview()}
-    onEnableNotifications={() => notify.requestPermission()}
-  />
+      onMute={(m) => notify.setMuted(m)}
+      onVolume={(v) => notify.setVolume(v)}
+      onPreview={() => notify.preview()}
+      onEnableNotifications={() => notify.requestPermission()}
+    />
+
+    <SignInBar
+      state={session.state}
+      canSignIn={session.canSignIn}
+      onSignIn={() => session.signIn()}
+      onSignOut={() => void session.signOut()}
+    />
+  {/if}
 {/if}
 
 {#if client.gate}

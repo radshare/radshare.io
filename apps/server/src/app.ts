@@ -12,7 +12,7 @@ import { BoardCache } from "./board.ts";
 import { BOARD_CACHE_MS, PLATFORMS, type Platform } from "@radshare/protocol";
 import { clientIp, ConnectionCap, MAX_SOCKETS_PER_IP } from "./limits.ts";
 import { IgnRequiredError, upsertAccount } from "./lobby.ts";
-import { DEV_COOKIE } from "./auth.ts";
+import { DEV_COOKIE, type AuthResult, type Authenticator } from "./auth.ts";
 
 /** Injected per request by the server entry; see `index.ts`. */
 export type AppBindings = {
@@ -25,7 +25,7 @@ export type AppBindings = {
 export type AppDeps = {
   hub: Hub;
   cap: ConnectionCap;
-  authenticate: (req: Request) => Promise<string | null>;
+  authenticate: Authenticator;
   now?: () => number;
   /**
    * Registers `/api/dev-login`. Only ever true when the dev bypass is already
@@ -88,9 +88,14 @@ export function createApp(deps: AppDeps) {
    * shows the first-run screen. There is no third state.
    */
   app.get("/api/me", async (c) => {
-    const accountId = await deps.authenticate(c.req.raw);
-    if (!accountId) return c.json({ error: "AUTH_FAILED" }, 401);
-    return c.json({ accountId, hasAccount: deps.hub.hasAccount(accountId) });
+    const auth = await deps.authenticate(c.req.raw);
+    if (auth.kind === "handshake") return handshake(auth);
+    if (auth.kind === "signed-out") return c.json({ signedIn: false }, 200);
+    return c.json({
+      signedIn: true,
+      accountId: auth.accountId,
+      hasAccount: deps.hub.hasAccount(auth.accountId),
+    });
   });
 
   /**
@@ -98,8 +103,10 @@ export function createApp(deps: AppDeps) {
    * creates nothing. Self-declared and unverified; DE exposes no player API.
    */
   app.post("/api/account", async (c) => {
-    const accountId = await deps.authenticate(c.req.raw);
-    if (!accountId) return c.json({ error: "AUTH_FAILED" }, 401);
+    const auth = await deps.authenticate(c.req.raw);
+    if (auth.kind === "handshake") return handshake(auth);
+    if (auth.kind !== "signed-in") return c.json({ error: "AUTH_FAILED" }, 401);
+    const accountId = auth.accountId;
 
     let body: unknown;
     try {
@@ -133,8 +140,12 @@ export function createApp(deps: AppDeps) {
    * between visitors — keying on it locks out everyone at the sixth.
    */
   app.get("/ws", async (c) => {
-    const accountId = await deps.authenticate(c.req.raw);
-    if (!accountId) return c.json({ error: "AUTH_FAILED" }, 401);
+    // A handshake cannot be performed on an upgrade -- there is nowhere to
+    // redirect a WebSocket to. The page load resolves it first, so this only
+    // means "reload and try again".
+    const auth = await deps.authenticate(c.req.raw);
+    if (auth.kind !== "signed-in") return c.json({ error: "AUTH_FAILED" }, 401);
+    const accountId = auth.accountId;
 
     const ip = clientIp(c.req.raw.headers, c.env.peer);
     const connectionId = crypto.randomUUID();
@@ -150,4 +161,14 @@ export function createApp(deps: AppDeps) {
   });
 
   return app;
+}
+
+/**
+ * Clerk's handshake headers carry a redirect and the cookies that complete it.
+ * Dropping them leaves the browser looping through sign-in forever, so they
+ * are passed through verbatim.
+ */
+function handshake(auth: Extract<AuthResult, { kind: "handshake" }>): Response {
+  const location = auth.headers.get("location");
+  return new Response(null, { status: location ? 307 : 401, headers: auth.headers });
 }

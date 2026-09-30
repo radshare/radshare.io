@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { bucketKey } from "@radshare/protocol";
 import { createApp, type AppBindings } from "./app.ts";
-import { buildAuthenticator, devAuthenticator, isDevAuth, MissingClerkKeyError } from "./auth.ts";
+import {
+  buildAuthenticator,
+  devAuthenticator,
+  isDevAuth,
+  MissingClerkKeyError,
+  type Authenticator,
+} from "./auth.ts";
 import { openDatabase } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { upsertAccount } from "./lobby.ts";
@@ -10,7 +16,7 @@ import { ConnectionCap } from "./limits.ts";
 const AXI = bucketKey("Axi A2", "radiant");
 
 function harness(
-  opts: { authenticate?: (req: Request) => Promise<string | null>; devAuth?: boolean } = {},
+  opts: { authenticate?: Authenticator; devAuth?: boolean } = {},
 ) {
   let clock = 5000;
   const db = openDatabase();
@@ -31,7 +37,8 @@ function harness(
   const app = createApp({
     hub,
     cap,
-    authenticate: opts.authenticate ?? (async () => "account-1"),
+    authenticate:
+      opts.authenticate ?? (async () => ({ kind: "signed-in", accountId: "account-1" })),
     now: () => clock,
     devAuth: opts.devAuth ?? false,
   });
@@ -78,7 +85,7 @@ describe("GET /api/health", () => {
 
 describe("GET /api/board", () => {
   test("needs no authentication -- it is the proof surface", async () => {
-    const h = harness({ authenticate: async () => null });
+    const h = harness({ authenticate: async () => ({ kind: "signed-out" }) });
     expect((await h.get("/api/board")).status).toBe(200);
   });
 
@@ -147,19 +154,54 @@ describe("signing up", () => {
   }
 
   test("a Clerk session alone creates no account", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     const me = (await (await h.get("/api/me")).json()) as { hasAccount: boolean };
     expect(me.hasAccount).toBe(false);
   });
 
+  test("signed out is a 200 saying so, not an error", async () => {
+    // The client asks this on every load, including the very first. A 401 for
+    // the ordinary signed-out case makes the console look broken.
+    const h = harness({ authenticate: async () => ({ kind: "signed-out" }) });
+    const res = await h.get("/api/me");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ signedIn: false });
+  });
+
+  test("a handshake is passed through, never swallowed", async () => {
+    // Clerk answers some requests with a handshake rather than a verdict.
+    // Treating it as signed-out leaves a signed-in user looking permanently
+    // signed out, with no error anywhere.
+    const headers = new Headers({ location: "https://clerk.example/v1/handshake" });
+    headers.append("set-cookie", "__clerk_handshake=abc; Path=/");
+    const h = harness({ authenticate: async () => ({ kind: "handshake", headers }) });
+
+    const res = await h.get("/api/me");
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://clerk.example/v1/handshake");
+    expect(res.headers.get("set-cookie")).toContain("__clerk_handshake");
+  });
+
+  test("a handshake with no redirect is a 401 rather than a broken 307", async () => {
+    const h = harness({ authenticate: async () => ({ kind: "handshake", headers: new Headers() }) });
+    expect((await h.get("/api/me")).status).toBe(401);
+  });
+
+  test("an upgrade cannot handshake, so it just says try again", async () => {
+    // There is nowhere to redirect a WebSocket to; the page load resolves it.
+    const headers = new Headers({ location: "https://clerk.example/v1/handshake" });
+    const h = harness({ authenticate: async () => ({ kind: "handshake", headers }) });
+    expect((await h.get("/ws")).status).toBe(401);
+  });
+
   test("setting a name creates it", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     expect((await post(h, { ign: "zylok", platform: "pc" })).status).toBe(200);
     expect(h.hub.hasAccount("newcomer")).toBe(true);
   });
 
   test("a blank name is refused", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     for (const ign of ["", "   ", "	"]) {
       const res = await post(h, { ign });
       expect(res.status).toBe(400);
@@ -169,13 +211,13 @@ describe("signing up", () => {
   });
 
   test("a missing name is refused", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     expect((await post(h, { platform: "pc" })).status).toBe(400);
     expect((await post(h, {})).status).toBe(400);
   });
 
   test("an unknown platform is dropped rather than stored", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     await post(h, { ign: "zylok", platform: "dreamcast" });
     const row = h.hub.db
       .query<{ platform: string | null }, [string]>(
@@ -186,7 +228,7 @@ describe("signing up", () => {
   });
 
   test("mastery rank is optional and absent when unset", async () => {
-    const h = harness({ authenticate: async () => "newcomer" });
+    const h = harness({ authenticate: async () => ({ kind: "signed-in", accountId: "newcomer" }) });
     await post(h, { ign: "zylok" });
     const row = h.hub.db
       .query<{ mastery_rank: number | null }, [string]>(
@@ -196,16 +238,15 @@ describe("signing up", () => {
     expect(row.mastery_rank).toBeNull();
   });
 
-  test("it requires authentication", async () => {
-    const h = harness({ authenticate: async () => null });
+  test("writing an account requires authentication", async () => {
+    const h = harness({ authenticate: async () => ({ kind: "signed-out" }) });
     expect((await post(h, { ign: "zylok" })).status).toBe(401);
-    expect((await h.get("/api/me")).status).toBe(401);
   });
 });
 
 describe("GET /ws", () => {
   test("an unauthenticated upgrade is refused", async () => {
-    const h = harness({ authenticate: async () => null });
+    const h = harness({ authenticate: async () => ({ kind: "signed-out" }) });
     const res = await h.get("/ws");
     expect(res.status).toBe(401);
     expect(h.upgrades).toHaveLength(0);
@@ -246,7 +287,11 @@ describe("GET /ws", () => {
   test("a failed upgrade releases the slot it reserved", async () => {
     const hub = new Hub({ db: openDatabase(), relicName: (id) => id, send: () => {} });
     const cap = new ConnectionCap();
-    const app = createApp({ hub, cap, authenticate: async () => "a" });
+    const app = createApp({
+      hub,
+      cap,
+      authenticate: async () => ({ kind: "signed-in", accountId: "a" }),
+    });
 
     for (let i = 0; i < 6; i += 1) {
       const res = await app.request(
@@ -266,12 +311,15 @@ describe("the dev bypass reaches a browser", () => {
     // bypass works for scripts and not for the actual app.
     const auth = devAuthenticator();
     const req = new Request("http://x/ws", { headers: { cookie: "radshare_dev=zylok" } });
-    expect(await auth(req)).toBe("zylok");
+    expect(await auth(req)).toEqual({ kind: "signed-in", accountId: "zylok" });
   });
 
   test("a query parameter works too, which is how the cookie gets set", async () => {
     const auth = devAuthenticator();
-    expect(await auth(new Request("http://x/?dev=zylok"))).toBe("zylok");
+    expect(await auth(new Request("http://x/?dev=zylok"))).toEqual({
+      kind: "signed-in",
+      accountId: "zylok",
+    });
   });
 
   test("a header still wins, for scripts", async () => {
@@ -279,13 +327,13 @@ describe("the dev bypass reaches a browser", () => {
     const req = new Request("http://x/?dev=query", {
       headers: { "x-dev-account": "header", cookie: "radshare_dev=cookie" },
     });
-    expect(await auth(req)).toBe("header");
+    expect(await auth(req)).toEqual({ kind: "signed-in", accountId: "header" });
   });
 
   test("other cookies are not mistaken for it", async () => {
     const auth = devAuthenticator();
     const req = new Request("http://x/", { headers: { cookie: "session=abc; other=radshare_dev" } });
-    expect(await auth(req)).toBeNull();
+    expect(await auth(req)).toEqual({ kind: "signed-out" });
   });
 
   test("isDevAuth is false in production whatever else is set", () => {
@@ -327,11 +375,13 @@ describe("the auth boundary", () => {
   test("the dev bypass reads a header when both gates are open", async () => {
     const auth = buildAuthenticator({ NODE_ENV: "development", RADSHARE_DEV_AUTH: "1" });
     const req = new Request("http://x/ws", { headers: { "x-dev-account": "dev-user" } });
-    expect(await auth(req)).toBe("dev-user");
+    expect(await auth(req)).toEqual({ kind: "signed-in", accountId: "dev-user" });
   });
 
   test("the dev bypass grants nothing without the header", async () => {
-    expect(await devAuthenticator()(new Request("http://x/ws"))).toBeNull();
+    expect(await devAuthenticator()(new Request("http://x/ws"))).toEqual({
+      kind: "signed-out",
+    });
   });
 });
 

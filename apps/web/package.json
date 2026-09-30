@@ -9,6 +9,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@clerk/clerk-js": "^6.35.0",
     "@radshare/protocol": "workspace:*"
   },
   "devDependencies": {
