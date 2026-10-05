@@ -22,7 +22,7 @@ A queue entry lives inside a WebSocket, so closing the tab removes it within
 milliseconds and losing the network removes it within 30 seconds. The board can
 only show people who are connected right now.
 
-Behaviour that is deliberate and easy to mistake for a bug:
+### Design rules
 
 - **No grace window on disconnect.** Any close evicts, with no close-code branch.
   The client re-queues from `localStorage` on reconnect.
